@@ -18,12 +18,7 @@ defmodule AstroboardWeb.BoardLive do
       |> assign(:card_form, nil)
       |> assign(:editing_list_id, nil)
 
-    socket =
-      Enum.reduce(board.lists, socket, fn list, acc ->
-        stream(acc, stream_name(list.id), list.cards)
-      end)
-
-    {:ok, socket}
+    {:ok, stream_lists(socket, board.lists)}
   end
 
   @impl true
@@ -42,11 +37,12 @@ defmodule AstroboardWeb.BoardLive do
 
   @impl true
   def handle_event("add_card", %{"list_id" => list_id, "title" => title}, socket) do
-    list = Enum.find(socket.assigns.lists, &(to_string(&1.id) == to_string(list_id)))
+    index = list_index(socket.assigns.lists, list_id)
+    list = index && Enum.at(socket.assigns.lists, index)
 
     case list && Boards.create_card(list, %{title: title}) do
       {:ok, card} ->
-        {:noreply, stream_insert(socket, stream_name(list.id), card)}
+        {:noreply, stream_insert(socket, stream_name(index), card)}
 
       _ ->
         {:noreply, socket}
@@ -56,10 +52,12 @@ defmodule AstroboardWeb.BoardLive do
   def handle_event("add_list", %{"title" => title}, socket) do
     case Boards.create_list(socket.assigns.board, %{title: title}) do
       {:ok, list} ->
+        index = length(socket.assigns.lists)
+
         {:noreply,
          socket
          |> update(:lists, &(&1 ++ [%{list | cards: []}]))
-         |> stream(stream_name(list.id), [])}
+         |> stream(stream_name(index), [])}
 
       {:error, _changeset} ->
         {:noreply, socket}
@@ -106,9 +104,11 @@ defmodule AstroboardWeb.BoardLive do
 
     case Boards.update_card(card, params) do
       {:ok, updated} ->
+        index = list_index(socket.assigns.lists, updated.list_id)
+
         {:noreply,
          socket
-         |> stream_insert(stream_name(updated.list_id), updated)
+         |> stream_insert(stream_name(index), updated)
          |> push_patch(to: ~p"/boards/#{socket.assigns.board.id}")}
 
       {:error, changeset} ->
@@ -119,10 +119,11 @@ defmodule AstroboardWeb.BoardLive do
   def handle_event("delete_card", _params, socket) do
     card = socket.assigns.selected_card
     {:ok, _} = Boards.delete_card(card)
+    index = list_index(socket.assigns.lists, card.list_id)
 
     {:noreply,
      socket
-     |> stream_delete(stream_name(card.list_id), card)
+     |> stream_delete(stream_name(index), card)
      |> push_patch(to: ~p"/boards/#{socket.assigns.board.id}")}
   end
 
@@ -152,18 +153,29 @@ defmodule AstroboardWeb.BoardLive do
     {:noreply, socket}
   end
 
-  # Re-fetch the board and reset every list's card stream to the canonical order.
+  # Re-fetch the board and reset every column's card stream to the canonical order.
   defp reload_board(socket) do
     board = Boards.get_board!(socket.assigns.current_scope, socket.assigns.board.id)
 
     socket
     |> assign(:board, board)
     |> assign(:lists, board.lists)
-    |> then(fn s ->
-      Enum.reduce(board.lists, s, fn list, acc ->
-        stream(acc, stream_name(list.id), list.cards, reset: true)
-      end)
+    |> stream_lists(board.lists, reset: true)
+  end
+
+  # Stream each list's cards into a column-indexed stream. Naming by column
+  # index (not list id) keeps the atom table bounded by the max number of
+  # columns ever rendered, since atoms are never garbage-collected.
+  defp stream_lists(socket, lists, opts \\ []) do
+    lists
+    |> Enum.with_index()
+    |> Enum.reduce(socket, fn {list, index}, acc ->
+      stream(acc, stream_name(index), list.cards, opts)
     end)
+  end
+
+  defp list_index(lists, list_id) do
+    Enum.find_index(lists, &(to_string(&1.id) == to_string(list_id)))
   end
 
   defp to_int(value) when is_integer(value), do: value
@@ -175,7 +187,7 @@ defmodule AstroboardWeb.BoardLive do
     end
   end
 
-  defp stream_name(list_id), do: :"cards_#{list_id}"
+  defp stream_name(index), do: :"cards_#{index}"
 
   @impl true
   def render(assigns) do
@@ -195,7 +207,7 @@ defmodule AstroboardWeb.BoardLive do
 
         <div id="board-lists" class="flex gap-4 overflow-x-auto pb-4 items-start">
           <section
-            :for={list <- @lists}
+            :for={{list, index} <- Enum.with_index(@lists)}
             id={"list-#{list.id}"}
             class="glass-panel flex-none w-72 rounded-2xl p-3 space-y-3"
           >
@@ -253,7 +265,7 @@ defmodule AstroboardWeb.BoardLive do
               class="space-y-2 min-h-8"
             >
               <.link
-                :for={{dom_id, card} <- @streams[stream_name(list.id)]}
+                :for={{dom_id, card} <- @streams[stream_name(index)]}
                 id={dom_id}
                 patch={~p"/boards/#{@board.id}/cards/#{card.id}"}
                 draggable="true"
