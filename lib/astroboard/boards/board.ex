@@ -5,6 +5,7 @@ defmodule Astroboard.Boards.Board do
   schema "boards" do
     field :title, :string
 
+    belongs_to :user, Astroboard.Accounts.User
     has_many :lists, Astroboard.Boards.List, preload_order: [asc: :position]
 
     timestamps(type: :utc_datetime)

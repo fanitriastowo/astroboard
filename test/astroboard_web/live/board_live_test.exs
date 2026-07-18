@@ -5,8 +5,8 @@ defmodule AstroboardWeb.BoardLiveTest do
 
   alias Astroboard.Boards
 
-  defp create_board(_) do
-    {:ok, board} = Boards.create_board(%{title: "Product Roadmap"})
+  defp create_board(%{scope: scope}) do
+    {:ok, board} = Boards.create_board(scope, %{title: "Product Roadmap"})
     {:ok, backlog} = Boards.create_list(board, %{title: "Backlog"})
     {:ok, _doing} = Boards.create_list(board, %{title: "Doing"})
     {:ok, _card} = Boards.create_card(backlog, %{title: "Wire up migrations"})
@@ -14,8 +14,37 @@ defmodule AstroboardWeb.BoardLiveTest do
     %{board: board, backlog: backlog}
   end
 
+  describe "Index" do
+    setup [:register_and_log_in_user, :create_board]
+
+    test "lists the current user's boards", %{conn: conn, board: board} do
+      {:ok, view, _html} = live(conn, ~p"/boards")
+
+      assert has_element?(view, "#boards", board.title)
+    end
+
+    test "does not list boards owned by other users", %{conn: conn} do
+      other = Astroboard.AccountsFixtures.user_scope_fixture()
+      {:ok, _theirs} = Boards.create_board(other, %{title: "Secret Board"})
+
+      {:ok, view, _html} = live(conn, ~p"/boards")
+
+      refute has_element?(view, "#boards", "Secret Board")
+    end
+
+    test "creates a board from the index", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/boards")
+
+      view
+      |> form("#new-board-form", %{"title" => "Q3 Launch"})
+      |> render_submit()
+
+      assert has_element?(view, "#boards", "Q3 Launch")
+    end
+  end
+
   describe "Show" do
-    setup [:create_board]
+    setup [:register_and_log_in_user, :create_board]
 
     test "renders the board title, lists and cards", %{conn: conn, board: board, backlog: backlog} do
       {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}")
@@ -43,6 +72,20 @@ defmodule AstroboardWeb.BoardLiveTest do
       |> render_submit()
 
       assert has_element?(view, "#board-lists", "In Review")
+    end
+
+    test "cannot view another user's board", %{conn: conn} do
+      other = Astroboard.AccountsFixtures.user_scope_fixture()
+      {:ok, theirs} = Boards.create_board(other, %{title: "Theirs"})
+
+      assert_raise Ecto.NoResultsError, fn -> live(conn, ~p"/boards/#{theirs.id}") end
+    end
+  end
+
+  describe "authentication" do
+    test "redirects to log in when unauthenticated", %{conn: conn} do
+      assert {:error, {:redirect, %{to: path}}} = live(conn, ~p"/boards")
+      assert path =~ "/users/log-in"
     end
   end
 end

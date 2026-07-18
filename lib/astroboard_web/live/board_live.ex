@@ -5,7 +5,7 @@ defmodule AstroboardWeb.BoardLive do
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
-    board = Boards.get_board!(id)
+    board = Boards.get_board!(socket.assigns.current_scope, id)
 
     socket =
       socket
@@ -52,9 +52,12 @@ defmodule AstroboardWeb.BoardLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="space-y-6">
         <header class="flex items-center gap-3">
+          <.link navigate={~p"/boards"} class="text-sm text-base-content/60 hover:text-base-content">
+            &larr; Boards
+          </.link>
           <span class="size-8 rounded-lg bg-gradient-to-br from-violet-500 to-cyan-400 shadow-lg shadow-violet-500/40" />
           <h1 id="board-title" class="text-2xl font-bold tracking-tight">{@board.title}</h1>
         </header>

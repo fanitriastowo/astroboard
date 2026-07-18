@@ -5,27 +5,30 @@ defmodule Astroboard.Boards do
 
   import Ecto.Query, warn: false
   alias Astroboard.Repo
+  alias Astroboard.Accounts.Scope
   alias Astroboard.Boards.{Board, List, Card}
 
-  @doc "Lists all boards."
-  def list_boards do
-    Repo.all(Board)
+  @doc "Lists the boards owned by the scope's user."
+  def list_boards(%Scope{} = scope) do
+    Repo.all(from b in Board, where: b.user_id == ^scope.user.id, order_by: [asc: b.inserted_at])
   end
 
   @doc """
-  Returns a board with its lists and cards preloaded, each ordered by position.
+  Returns one of the scope user's boards with its lists and cards preloaded,
+  each ordered by position.
 
-  Raises `Ecto.NoResultsError` if the board does not exist.
+  Raises `Ecto.NoResultsError` if the board does not exist or is not owned by
+  the scope's user.
   """
-  def get_board!(id) do
+  def get_board!(%Scope{} = scope, id) do
     Board
-    |> Repo.get!(id)
+    |> Repo.get_by!(id: id, user_id: scope.user.id)
     |> Repo.preload(lists: :cards)
   end
 
-  @doc "Creates a board."
-  def create_board(attrs) do
-    %Board{}
+  @doc "Creates a board owned by the scope's user."
+  def create_board(%Scope{} = scope, attrs) do
+    %Board{user_id: scope.user.id}
     |> Board.changeset(attrs)
     |> Repo.insert()
   end

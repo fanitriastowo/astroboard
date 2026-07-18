@@ -10,10 +10,17 @@
 # We recommend using the bang functions (`insert!`, `update!`
 # and so on) as they will fail if something goes wrong.
 
+alias Astroboard.Accounts
+alias Astroboard.Accounts.Scope
 alias Astroboard.Boards
 
-if Boards.list_boards() == [] do
-  {:ok, board} = Boards.create_board(%{title: "Product Roadmap"})
+demo_email = "demo@astroboard.app"
+
+if Accounts.get_user_by_email(demo_email) == nil do
+  {:ok, user} = Accounts.register_user(%{email: demo_email})
+  scope = Scope.for_user(user)
+
+  {:ok, board} = Boards.create_board(scope, %{title: "Product Roadmap"})
 
   seed_lists = [
     {"Backlog", ["Wire up SQLite migrations", "Research drag-and-drop", "Sketch empty states"]},
@@ -27,5 +34,8 @@ if Boards.list_boards() == [] do
     for card_title <- card_titles, do: {:ok, _} = Boards.create_card(list, %{title: card_title})
   end
 
-  IO.puts("Seeded demo board at /boards/#{board.id}")
+  IO.puts("""
+  Seeded demo user #{demo_email} with a board at /boards/#{board.id}.
+  Log in at /users/log-in — the magic-link email lands in /dev/mailbox.
+  """)
 end
