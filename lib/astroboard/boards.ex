@@ -5,24 +5,30 @@ defmodule Astroboard.Boards do
 
   import Ecto.Query, warn: false
   alias Astroboard.Repo
+  alias Astroboard.Accounts
   alias Astroboard.Accounts.Scope
-  alias Astroboard.Boards.{Board, List, Card}
+  alias Astroboard.Boards.{Board, BoardMember, Card, List}
 
-  @doc "Lists the boards owned by the scope's user."
+  @doc "Lists the boards the scope's user can access (owned or a member of)."
   def list_boards(%Scope{} = scope) do
-    Repo.all(from b in Board, where: b.user_id == ^scope.user.id, order_by: [asc: b.inserted_at])
+    Repo.all(
+      from b in Board,
+        as: :board,
+        where: ^board_access(scope),
+        order_by: [asc: b.inserted_at]
+    )
   end
 
   @doc """
-  Returns one of the scope user's boards with its lists and cards preloaded,
-  each ordered by position.
+  Returns one of the scope user's accessible boards (owned or a member of) with
+  its lists and cards preloaded, each ordered by position.
 
-  Raises `Ecto.NoResultsError` if the board does not exist or is not owned by
-  the scope's user.
+  Raises `Ecto.NoResultsError` if the board does not exist or the user has no
+  access.
   """
   def get_board!(%Scope{} = scope, id) do
-    Board
-    |> Repo.get_by!(id: id, user_id: scope.user.id)
+    from(b in Board, as: :board, where: b.id == ^id, where: ^board_access(scope))
+    |> Repo.one!()
     |> Repo.preload(lists: :cards)
   end
 
@@ -110,8 +116,10 @@ defmodule Astroboard.Boards do
         join: l in List,
         on: l.id == c.list_id,
         join: b in Board,
+        as: :board,
         on: b.id == l.board_id,
-        where: c.id == ^id and b.user_id == ^scope.user.id
+        where: c.id == ^id,
+        where: ^board_access(scope)
     )
   end
 
@@ -127,8 +135,10 @@ defmodule Astroboard.Boards do
         join: l in List,
         on: l.id == c.list_id,
         join: b in Board,
+        as: :board,
         on: b.id == l.board_id,
-        where: c.id == ^card_id and l.board_id == ^board_id and b.user_id == ^scope.user.id
+        where: c.id == ^card_id and l.board_id == ^board_id,
+        where: ^board_access(scope)
     )
   end
 
@@ -223,14 +233,74 @@ defmodule Astroboard.Boards do
     end)
   end
 
-  @doc "Returns one of the scope user's lists. Raises if not found/owned."
+  @doc "Returns one of the scope user's accessible lists. Raises if not found/no access."
   def get_list!(%Scope{} = scope, id) do
     Repo.one!(
       from l in List,
         join: b in Board,
+        as: :board,
         on: b.id == l.board_id,
-        where: l.id == ^id and b.user_id == ^scope.user.id
+        where: l.id == ^id,
+        where: ^board_access(scope)
     )
+  end
+
+  ## Membership
+
+  @doc "Adds an existing user (by email) as a member of the board. Owner-only."
+  def add_member(%Scope{} = scope, board_id, email) when is_binary(email) do
+    board = owned_board!(scope, board_id)
+
+    case Accounts.get_user_by_email(email) do
+      nil ->
+        {:error, :not_found}
+
+      %{id: user_id} when user_id == board.user_id ->
+        {:error, :already_member}
+
+      user ->
+        case %BoardMember{board_id: board.id, user_id: user.id}
+             |> BoardMember.changeset(%{})
+             |> Repo.insert() do
+          {:ok, member} -> {:ok, member}
+          {:error, _changeset} -> {:error, :already_member}
+        end
+    end
+  end
+
+  @doc "Removes a member from the board. Owner-only."
+  def remove_member(%Scope{} = scope, board_id, user_id) do
+    board = owned_board!(scope, board_id)
+
+    case Repo.get_by(BoardMember, board_id: board.id, user_id: user_id) do
+      nil -> {:error, :not_found}
+      member -> Repo.delete(member)
+    end
+  end
+
+  @doc "Returns the owner user and member users of an accessible board."
+  def list_members(%Scope{} = scope, board_id) do
+    board = get_board!(scope, board_id)
+    owner = Accounts.get_user!(board.user_id)
+
+    members =
+      Repo.all(
+        from m in BoardMember,
+          join: u in assoc(m, :user),
+          where: m.board_id == ^board.id,
+          select: u,
+          order_by: u.email
+      )
+
+    %{owner: owner, members: members}
+  end
+
+  # Dynamic access predicate on a query with the board bound as `:board`:
+  # the scope's user must own the board or be a member of it.
+  defp board_access(%Scope{} = scope) do
+    uid = scope.user.id
+    member_ids = from(m in BoardMember, where: m.user_id == ^uid, select: m.board_id)
+    dynamic([board: b], b.user_id == ^uid or b.id in subquery(member_ids))
   end
 
   ## PubSub
@@ -269,10 +339,13 @@ defmodule Astroboard.Boards do
 
   defp broadcast_structure(result, _board_id), do: result
 
+  # Members and the owner may add lists to a board.
   defp authorize_board!(%Scope{} = scope, board_id) do
     Repo.one!(
       from b in Board,
-        where: b.id == ^board_id and b.user_id == ^scope.user.id,
+        as: :board,
+        where: b.id == ^board_id,
+        where: ^board_access(scope),
         select: b.id
     )
   end

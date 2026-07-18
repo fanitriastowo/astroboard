@@ -7,6 +7,7 @@ defmodule Astroboard.Boards.Board do
 
     belongs_to :user, Astroboard.Accounts.User
     has_many :lists, Astroboard.Boards.List, preload_order: [asc: :position]
+    has_many :board_members, Astroboard.Boards.BoardMember
 
     timestamps(type: :utc_datetime)
   end

@@ -33,6 +33,81 @@ defmodule Astroboard.BoardsTest do
     end
   end
 
+  describe "board membership and access" do
+    setup %{scope: owner} do
+      {:ok, board} = Boards.create_board(owner, %{title: "Shared"})
+      {:ok, list} = Boards.create_list(owner, board, %{title: "L"})
+      member = user_scope_fixture()
+      %{owner: owner, board: board, list: list, member: member}
+    end
+
+    test "add_member/3 adds an existing user by email and grants access", ctx do
+      %{owner: owner, board: board, member: member} = ctx
+      assert {:ok, _} = Boards.add_member(owner, board.id, member.user.email)
+      assert Boards.get_board!(member, board.id).id == board.id
+    end
+
+    test "add_member/3 errors for an unknown email", %{owner: owner, board: board} do
+      assert {:error, :not_found} = Boards.add_member(owner, board.id, "nobody@example.com")
+    end
+
+    test "add_member/3 errors when the user is already a member", ctx do
+      %{owner: owner, board: board, member: member} = ctx
+      {:ok, _} = Boards.add_member(owner, board.id, member.user.email)
+      assert {:error, :already_member} = Boards.add_member(owner, board.id, member.user.email)
+    end
+
+    test "add_member/3 rejects a non-owner", %{board: board, member: member} do
+      other = user_scope_fixture()
+
+      assert_raise Ecto.NoResultsError, fn ->
+        Boards.add_member(member, board.id, other.user.email)
+      end
+    end
+
+    test "list_boards/1 includes boards the user is a member of", ctx do
+      %{owner: owner, board: board, member: member} = ctx
+      {:ok, _} = Boards.add_member(owner, board.id, member.user.email)
+      assert board.id in Enum.map(Boards.list_boards(member), & &1.id)
+    end
+
+    test "a non-member cannot access the board", %{board: board} do
+      stranger = user_scope_fixture()
+      assert_raise Ecto.NoResultsError, fn -> Boards.get_board!(stranger, board.id) end
+    end
+
+    test "a member is a full collaborator (can create cards)", ctx do
+      %{owner: owner, board: board, list: list, member: member} = ctx
+      {:ok, _} = Boards.add_member(owner, board.id, member.user.email)
+      assert {:ok, _card} = Boards.create_card(member, list, %{title: "by member"})
+    end
+
+    test "a member cannot rename the board (owner-only)", ctx do
+      %{owner: owner, board: board, member: member} = ctx
+      {:ok, _} = Boards.add_member(owner, board.id, member.user.email)
+
+      assert_raise Ecto.NoResultsError, fn ->
+        Boards.update_board(member, board.id, %{title: "x"})
+      end
+    end
+
+    test "remove_member/3 revokes access", ctx do
+      %{owner: owner, board: board, member: member} = ctx
+      {:ok, _} = Boards.add_member(owner, board.id, member.user.email)
+      assert {:ok, _} = Boards.remove_member(owner, board.id, member.user.id)
+      assert_raise Ecto.NoResultsError, fn -> Boards.get_board!(member, board.id) end
+    end
+
+    test "list_members/2 returns the owner and members", ctx do
+      %{owner: owner, board: board, member: member} = ctx
+      {:ok, _} = Boards.add_member(owner, board.id, member.user.email)
+      %{owner: owner_user, members: members} = Boards.list_members(owner, board.id)
+
+      assert owner_user.id == owner.user.id
+      assert member.user.id in Enum.map(members, & &1.id)
+    end
+  end
+
   describe "update_board/3 and delete_board/2" do
     setup %{scope: scope} do
       {:ok, board} = Boards.create_board(scope, %{title: "Board"})
