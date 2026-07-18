@@ -82,6 +82,25 @@ defmodule Astroboard.BoardsTest do
       assert_raise Ecto.NoResultsError, fn -> Boards.get_card!(other, card.id) end
     end
 
+    test "get_board_card!/3 returns the card when it belongs to the board", %{
+      scope: scope,
+      board: board,
+      card: card
+    } do
+      assert Boards.get_board_card!(scope, board.id, card.id).id == card.id
+    end
+
+    test "get_board_card!/3 raises for a card on a different board of the same user", %{
+      scope: scope,
+      card: card
+    } do
+      {:ok, other_board} = Boards.create_board(scope, %{title: "Other"})
+
+      assert_raise Ecto.NoResultsError, fn ->
+        Boards.get_board_card!(scope, other_board.id, card.id)
+      end
+    end
+
     test "update_card/2 changes title and description", %{card: card} do
       assert {:ok, updated} =
                Boards.update_card(card, %{title: "Renamed", description: "Details"})

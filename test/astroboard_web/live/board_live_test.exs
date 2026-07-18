@@ -153,6 +153,18 @@ defmodule AstroboardWeb.BoardLiveTest do
         live(conn, ~p"/boards/#{board.id}/cards/#{oc.id}")
       end
     end
+
+    test "cannot open own card under a different board's URL", %{
+      conn: conn,
+      scope: scope,
+      card: card
+    } do
+      {:ok, other_board} = Boards.create_board(scope, %{title: "Other"})
+
+      assert_raise Ecto.NoResultsError, fn ->
+        live(conn, ~p"/boards/#{other_board.id}/cards/#{card.id}")
+      end
+    end
   end
 
   describe "Real-time move" do

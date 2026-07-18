@@ -79,6 +79,23 @@ defmodule Astroboard.Boards do
     )
   end
 
+  @doc """
+  Returns one of the scope user's cards that also belongs to `board_id`. Raises
+  `Ecto.NoResultsError` if the card does not exist, is not owned by the scope's
+  user, or lives on a different board (prevents opening a card under the wrong
+  board's URL).
+  """
+  def get_board_card!(%Scope{} = scope, board_id, card_id) do
+    Repo.one!(
+      from c in Card,
+        join: l in List,
+        on: l.id == c.list_id,
+        join: b in Board,
+        on: b.id == l.board_id,
+        where: c.id == ^card_id and l.board_id == ^board_id and b.user_id == ^scope.user.id
+    )
+  end
+
   @doc "Updates a card's editable fields (title, description). Broadcasts on success."
   def update_card(%Card{} = card, attrs) do
     card

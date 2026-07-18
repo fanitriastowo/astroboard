@@ -23,7 +23,8 @@ defmodule AstroboardWeb.BoardLive do
 
   @impl true
   def handle_params(%{"card_id" => card_id}, _uri, %{assigns: %{live_action: :card}} = socket) do
-    card = Boards.get_card!(socket.assigns.current_scope, card_id)
+    card =
+      Boards.get_board_card!(socket.assigns.current_scope, socket.assigns.board.id, card_id)
 
     {:noreply,
      socket
