@@ -85,6 +85,43 @@ defmodule Astroboard.BoardsTest do
     end
   end
 
+  describe "update_list/2 and delete_list/1" do
+    setup %{scope: scope} do
+      {:ok, board} = Boards.create_board(scope, %{title: "Board"})
+      {:ok, list} = Boards.create_list(board, %{title: "Backlog"})
+      {:ok, card} = Boards.create_card(list, %{title: "A card"})
+      %{board: board, list: list, card: card}
+    end
+
+    test "update_list/2 renames the list", %{list: list} do
+      assert {:ok, updated} = Boards.update_list(list, %{title: "In Progress"})
+      assert updated.title == "In Progress"
+    end
+
+    test "update_list/2 rejects a blank title", %{list: list} do
+      assert {:error, %Ecto.Changeset{}} = Boards.update_list(list, %{title: ""})
+    end
+
+    test "update_list/2 broadcasts to board subscribers", %{board: board, list: list} do
+      Boards.subscribe(board.id)
+      assert {:ok, _} = Boards.update_list(list, %{title: "Renamed"})
+      assert_receive {:board_updated}
+    end
+
+    test "delete_list/1 removes the list and its cards", %{
+      scope: scope,
+      board: board,
+      list: list,
+      card: card
+    } do
+      assert {:ok, _} = Boards.delete_list(list)
+
+      loaded = Boards.get_board!(scope, board.id)
+      assert loaded.lists == []
+      assert_raise Ecto.NoResultsError, fn -> Boards.get_card!(scope, card.id) end
+    end
+  end
+
   describe "move_card/4" do
     setup %{scope: scope} do
       {:ok, board} = Boards.create_board(scope, %{title: "Board"})

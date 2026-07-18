@@ -82,6 +82,31 @@ defmodule AstroboardWeb.BoardLiveTest do
     end
   end
 
+  describe "List actions" do
+    setup [:register_and_log_in_user, :create_board]
+
+    test "renames a list", %{conn: conn, board: board, backlog: backlog} do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}")
+
+      view |> element("#list-edit-#{backlog.id}") |> render_click()
+
+      view
+      |> form("#rename-list-#{backlog.id}", %{"title" => "Up Next"})
+      |> render_submit()
+
+      assert has_element?(view, "#list-#{backlog.id}", "Up Next")
+      refute has_element?(view, "#list-#{backlog.id}", "Backlog")
+    end
+
+    test "deletes a list", %{conn: conn, board: board, backlog: backlog} do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}")
+
+      view |> element("#list-delete-#{backlog.id}") |> render_click()
+
+      refute has_element?(view, "#list-#{backlog.id}")
+    end
+  end
+
   describe "Card modal" do
     setup [:register_and_log_in_user, :create_board]
 

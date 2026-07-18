@@ -16,6 +16,7 @@ defmodule AstroboardWeb.BoardLive do
       |> assign(:lists, board.lists)
       |> assign(:selected_card, nil)
       |> assign(:card_form, nil)
+      |> assign(:editing_list_id, nil)
 
     socket =
       Enum.reduce(board.lists, socket, fn list, acc ->
@@ -65,6 +66,33 @@ defmodule AstroboardWeb.BoardLive do
     end
   end
 
+  def handle_event("edit_list", %{"list_id" => list_id}, socket) do
+    {:noreply, assign(socket, :editing_list_id, to_int(list_id))}
+  end
+
+  def handle_event("cancel_edit_list", _params, socket) do
+    {:noreply, assign(socket, :editing_list_id, nil)}
+  end
+
+  def handle_event("rename_list", %{"list_id" => list_id, "title" => title}, socket) do
+    list = Enum.find(socket.assigns.lists, &(&1.id == to_int(list_id)))
+
+    case list && Boards.update_list(list, %{title: title}) do
+      {:ok, _updated} ->
+        {:noreply, socket |> assign(:editing_list_id, nil) |> reload_board()}
+
+      _ ->
+        {:noreply, assign(socket, :editing_list_id, nil)}
+    end
+  end
+
+  def handle_event("delete_list", %{"list_id" => list_id}, socket) do
+    list = Enum.find(socket.assigns.lists, &(&1.id == to_int(list_id)))
+    if list, do: Boards.delete_list(list)
+
+    {:noreply, reload_board(socket)}
+  end
+
   def handle_event("save_card", %{"card" => params}, socket) do
     card = socket.assigns.selected_card
 
@@ -111,6 +139,10 @@ defmodule AstroboardWeb.BoardLive do
     {:noreply, reload_board(socket)}
   end
 
+  def handle_info({:board_updated}, socket) do
+    {:noreply, reload_board(socket)}
+  end
+
   # Re-fetch the board and reset every list's card stream to the canonical order.
   defp reload_board(socket) do
     board = Boards.get_board!(socket.assigns.current_scope, socket.assigns.board.id)
@@ -152,8 +184,50 @@ defmodule AstroboardWeb.BoardLive do
             id={"list-#{list.id}"}
             class="glass-panel flex-none w-72 rounded-2xl p-3 space-y-3"
           >
-            <div class="flex items-center justify-between px-1">
-              <h2 class="text-sm font-semibold">{list.title}</h2>
+            <div class="flex items-center justify-between px-1 gap-2 group">
+              <%= if @editing_list_id == list.id do %>
+                <form
+                  id={"rename-list-#{list.id}"}
+                  phx-submit="rename_list"
+                  phx-value-list_id={list.id}
+                  class="flex-1"
+                >
+                  <input
+                    type="text"
+                    name="title"
+                    value={list.title}
+                    autocomplete="off"
+                    phx-mounted={JS.focus()}
+                    phx-blur="cancel_edit_list"
+                    class="input input-xs input-bordered w-full text-sm bg-base-100/40"
+                  />
+                </form>
+              <% else %>
+                <h2 class="text-sm font-semibold flex-1 truncate">{list.title}</h2>
+                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    type="button"
+                    id={"list-edit-#{list.id}"}
+                    phx-click="edit_list"
+                    phx-value-list_id={list.id}
+                    class="text-base-content/50 hover:text-base-content"
+                    aria-label="Rename list"
+                  >
+                    <.icon name="hero-pencil-square" class="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    id={"list-delete-#{list.id}"}
+                    phx-click="delete_list"
+                    phx-value-list_id={list.id}
+                    data-confirm="Delete this list and all its cards?"
+                    class="text-base-content/50 hover:text-error"
+                    aria-label="Delete list"
+                  >
+                    <.icon name="hero-trash" class="size-4" />
+                  </button>
+                </div>
+              <% end %>
             </div>
 
             <div

@@ -42,6 +42,30 @@ defmodule Astroboard.Boards do
     |> Repo.insert()
   end
 
+  @doc "Renames/updates a list. Broadcasts to board subscribers on success."
+  def update_list(%List{} = list, attrs) do
+    case list |> List.changeset(attrs) |> Repo.update() do
+      {:ok, updated} ->
+        broadcast(updated.board_id, {:board_updated})
+        {:ok, updated}
+
+      error ->
+        error
+    end
+  end
+
+  @doc "Deletes a list and its cards. Broadcasts to board subscribers."
+  def delete_list(%List{} = list) do
+    case Repo.delete(list) do
+      {:ok, deleted} ->
+        broadcast(list.board_id, {:board_updated})
+        {:ok, deleted}
+
+      error ->
+        error
+    end
+  end
+
   @doc "Creates a card appended to the end of the given list."
   def create_card(%List{} = list, attrs) do
     attrs = Map.put(normalize(attrs), "position", next_position(Card, :list_id, list.id))
