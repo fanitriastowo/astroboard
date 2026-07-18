@@ -156,6 +156,21 @@ defmodule AstroboardWeb.BoardLiveTest do
       refute has_element?(view, "#card-modal")
     end
 
+    test "sets a card due date shown on the card face", %{
+      conn: conn,
+      board: board,
+      backlog: backlog,
+      card: card
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/cards/#{card.id}")
+
+      view
+      |> form("#card-form", %{"card" => %{"title" => card.title, "due_date" => "2026-08-01"}})
+      |> render_submit()
+
+      assert has_element?(view, "#cards-#{backlog.id}", "Aug 01")
+    end
+
     test "deletes a card", %{conn: conn, board: board, backlog: backlog, card: card} do
       {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/cards/#{card.id}")
 

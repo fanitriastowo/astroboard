@@ -237,6 +237,14 @@ defmodule Astroboard.BoardsTest do
       assert updated.position == card.position
     end
 
+    test "update_card/2 sets and clears a due date", %{scope: scope, card: card} do
+      assert {:ok, updated} = Boards.update_card(scope, card, %{due_date: ~D[2026-08-01]})
+      assert updated.due_date == ~D[2026-08-01]
+
+      assert {:ok, cleared} = Boards.update_card(scope, updated, %{due_date: nil})
+      assert cleared.due_date == nil
+    end
+
     test "delete_card/1 removes the card", %{scope: scope, card: card} do
       assert {:ok, _} = Boards.delete_card(scope, card)
       assert_raise Ecto.NoResultsError, fn -> Boards.get_card!(scope, card.id) end

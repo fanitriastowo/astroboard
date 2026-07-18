@@ -227,6 +227,13 @@ defmodule AstroboardWeb.BoardLive do
     socket.assigns.board.user_id == socket.assigns.current_scope.user.id
   end
 
+  # Amber when the due date is today or past, muted otherwise.
+  defp due_class(date) do
+    if Date.compare(date, Date.utc_today()) != :gt,
+      do: "text-warning",
+      else: "text-base-content/50"
+  end
+
   defp load_members(socket) do
     %{owner: owner, members: members} =
       Boards.list_members(socket.assigns.current_scope, socket.assigns.board.id)
@@ -348,6 +355,15 @@ defmodule AstroboardWeb.BoardLive do
                 class="card-cosmic block rounded-xl px-3 py-2.5 text-sm cursor-grab active:cursor-grabbing"
               >
                 {card.title}
+                <span
+                  :if={card.due_date}
+                  class={["mt-1 flex items-center gap-1 font-mono text-xs", due_class(card.due_date)]}
+                >
+                  <.icon name="hero-clock" class="size-3" /> {Calendar.strftime(
+                    card.due_date,
+                    "%b %d"
+                  )}
+                </span>
               </.link>
             </div>
 

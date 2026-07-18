@@ -136,6 +136,7 @@ defmodule AstroboardWeb.BoardLive.Components do
             rows="5"
             placeholder="Add a more detailed description…"
           />
+          <.input field={@card_form[:due_date]} type="date" label="Due date" />
 
           <div class="flex items-center justify-between pt-2">
             <button
