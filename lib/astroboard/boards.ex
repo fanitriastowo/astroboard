@@ -33,6 +33,28 @@ defmodule Astroboard.Boards do
     |> Repo.insert()
   end
 
+  @doc "Renames one of the scope user's boards. Raises if not found/owned."
+  def update_board(%Scope{} = scope, board_id, attrs) do
+    scope
+    |> owned_board!(board_id)
+    |> Board.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc "Deletes one of the scope user's boards and its lists/cards. Raises if not found/owned."
+  def delete_board(%Scope{} = scope, board_id) do
+    scope
+    |> owned_board!(board_id)
+    |> Repo.delete()
+  end
+
+  @doc "Fetches one of the scope user's boards without preloads. Raises if not found/owned."
+  def get_owned_board!(%Scope{} = scope, board_id), do: owned_board!(scope, board_id)
+
+  defp owned_board!(%Scope{} = scope, board_id) do
+    Repo.get_by!(Board, id: board_id, user_id: scope.user.id)
+  end
+
   @doc "Creates a list appended to the end of the given board. Broadcasts on success."
   def create_list(%Scope{} = scope, %Board{} = board, attrs) do
     board_id = authorize_board!(scope, board.id)

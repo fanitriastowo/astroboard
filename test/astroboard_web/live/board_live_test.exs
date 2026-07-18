@@ -41,6 +41,27 @@ defmodule AstroboardWeb.BoardLiveTest do
 
       assert has_element?(view, "#boards", "Q3 Launch")
     end
+
+    test "renames a board from the dashboard", %{conn: conn, board: board} do
+      {:ok, view, _html} = live(conn, ~p"/boards")
+
+      view |> element("#board-edit-#{board.id}") |> render_click()
+
+      view
+      |> form("#rename-board-#{board.id}", %{"title" => "Renamed Board"})
+      |> render_submit()
+
+      assert has_element?(view, "#boards", "Renamed Board")
+      refute has_element?(view, "#boards", "Product Roadmap")
+    end
+
+    test "deletes a board from the dashboard", %{conn: conn, board: board} do
+      {:ok, view, _html} = live(conn, ~p"/boards")
+
+      view |> element("#board-delete-#{board.id}") |> render_click()
+
+      refute has_element?(view, "#boards", "Product Roadmap")
+    end
   end
 
   describe "Show" do

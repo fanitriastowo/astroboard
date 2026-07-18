@@ -33,6 +33,50 @@ defmodule Astroboard.BoardsTest do
     end
   end
 
+  describe "update_board/3 and delete_board/2" do
+    setup %{scope: scope} do
+      {:ok, board} = Boards.create_board(scope, %{title: "Board"})
+      {:ok, list} = Boards.create_list(scope, board, %{title: "L"})
+      {:ok, card} = Boards.create_card(scope, list, %{title: "C"})
+      %{board: board, list: list, card: card}
+    end
+
+    test "update_board/3 renames the board", %{scope: scope, board: board} do
+      assert {:ok, updated} = Boards.update_board(scope, board.id, %{title: "Renamed"})
+      assert updated.title == "Renamed"
+    end
+
+    test "update_board/3 rejects a blank title", %{scope: scope, board: board} do
+      assert {:error, %Ecto.Changeset{}} = Boards.update_board(scope, board.id, %{title: ""})
+    end
+
+    test "update_board/3 raises for another user's board", %{board: board} do
+      other = user_scope_fixture()
+
+      assert_raise Ecto.NoResultsError, fn ->
+        Boards.update_board(other, board.id, %{title: "x"})
+      end
+    end
+
+    test "delete_board/2 removes the board and cascades lists and cards", %{
+      scope: scope,
+      board: board,
+      list: list,
+      card: card
+    } do
+      assert {:ok, _} = Boards.delete_board(scope, board.id)
+
+      assert_raise Ecto.NoResultsError, fn -> Boards.get_board!(scope, board.id) end
+      assert_raise Ecto.NoResultsError, fn -> Boards.get_list!(scope, list.id) end
+      assert_raise Ecto.NoResultsError, fn -> Boards.get_card!(scope, card.id) end
+    end
+
+    test "delete_board/2 raises for another user's board", %{board: board} do
+      other = user_scope_fixture()
+      assert_raise Ecto.NoResultsError, fn -> Boards.delete_board(other, board.id) end
+    end
+  end
+
   describe "create_list/2 and create_card/2" do
     test "append with incrementing positions", %{scope: scope} do
       {:ok, board} = Boards.create_board(scope, %{title: "Board"})
