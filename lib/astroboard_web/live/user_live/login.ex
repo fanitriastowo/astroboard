@@ -7,7 +7,11 @@ defmodule AstroboardWeb.UserLive.Login do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-sm space-y-4">
+      <div class="mx-auto max-w-sm mt-6 glass-panel rounded-2xl p-6 space-y-4">
+        <div class="flex items-center justify-center gap-2">
+          <span class="cosmic-badge size-7 rounded-lg"></span>
+          <span class="text-lg font-bold tracking-tight">Astroboard</span>
+        </div>
         <div class="text-center">
           <.header>
             <p>Log in</p>

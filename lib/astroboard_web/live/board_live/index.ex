@@ -30,7 +30,7 @@ defmodule AstroboardWeb.BoardLive.Index do
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="space-y-6">
         <header class="flex items-center gap-3">
-          <span class="size-8 rounded-lg bg-gradient-to-br from-violet-500 to-cyan-400 shadow-lg shadow-violet-500/40" />
+          <span class="cosmic-badge size-8 rounded-xl" />
           <h1 class="text-2xl font-bold tracking-tight">Your boards</h1>
         </header>
 
@@ -38,10 +38,11 @@ defmodule AstroboardWeb.BoardLive.Index do
           <li
             :for={{dom_id, board} <- @streams.boards}
             id={dom_id}
-            class="rounded-xl border border-base-300 bg-base-200/60 hover:border-violet-400 transition-colors"
+            class="card-cosmic rounded-2xl overflow-hidden"
           >
-            <.link navigate={~p"/boards/#{board.id}"} class="block p-4 h-24 flex items-end">
-              <span class="font-semibold">{board.title}</span>
+            <.link navigate={~p"/boards/#{board.id}"} class="block">
+              <span class="block h-16 cosmic-badge opacity-80"></span>
+              <span class="block p-4 font-semibold">{board.title}</span>
             </.link>
           </li>
         </ul>
@@ -52,7 +53,7 @@ defmodule AstroboardWeb.BoardLive.Index do
             name="title"
             autocomplete="off"
             placeholder="New board title"
-            class="input input-bordered w-full text-sm"
+            class="input input-bordered w-full text-sm bg-base-100/40"
           />
           <button type="submit" class="btn btn-primary btn-sm">Create board</button>
         </form>

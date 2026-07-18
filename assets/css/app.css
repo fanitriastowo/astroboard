@@ -21,44 +21,45 @@
 /* daisyUI theme plugin.
   We ship with two themes, a light one inspired on Phoenix colors and a dark one inspired
   on Elixir colors. Build your own at: https://daisyui.com/theme-generator/ */
+/* Astroboard cosmic — the app's single committed dark theme. */
 @plugin "daisyui/packages/bundle/daisyui-theme" {
   name: "dark";
-  default: false;
+  default: true;
   prefersdark: true;
   color-scheme: "dark";
-  --color-base-100: oklch(30.33% 0.016 252.42);
-  --color-base-200: oklch(25.26% 0.014 253.1);
-  --color-base-300: oklch(20.15% 0.012 254.09);
-  --color-base-content: oklch(97.807% 0.029 256.847);
-  --color-primary: oklch(58% 0.233 277.117);
-  --color-primary-content: oklch(96% 0.018 272.314);
-  --color-secondary: oklch(58% 0.233 277.117);
-  --color-secondary-content: oklch(96% 0.018 272.314);
-  --color-accent: oklch(60% 0.25 292.717);
-  --color-accent-content: oklch(96% 0.016 293.756);
-  --color-neutral: oklch(37% 0.044 257.287);
-  --color-neutral-content: oklch(98% 0.003 247.858);
-  --color-info: oklch(58% 0.158 241.966);
-  --color-info-content: oklch(97% 0.013 236.62);
-  --color-success: oklch(60% 0.118 184.704);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
-  --color-error-content: oklch(96% 0.015 12.422);
-  --radius-selector: 0.25rem;
-  --radius-field: 0.25rem;
-  --radius-box: 0.5rem;
+  --color-base-100: #0d1226;
+  --color-base-200: #16203f;
+  --color-base-300: #29365f;
+  --color-base-content: #e7eaf7;
+  --color-primary: #8b6ff0;
+  --color-primary-content: #0a0e14;
+  --color-secondary: #4fd6e0;
+  --color-secondary-content: #08131a;
+  --color-accent: #4fd6e0;
+  --color-accent-content: #08131a;
+  --color-neutral: #1b2440;
+  --color-neutral-content: #e7eaf7;
+  --color-info: #4fd6e0;
+  --color-info-content: #08131a;
+  --color-success: #4ee0a6;
+  --color-success-content: #06140d;
+  --color-warning: #f4b866;
+  --color-warning-content: #1a1206;
+  --color-error: #ff7a99;
+  --color-error-content: #1a0810;
+  --radius-selector: 0.5rem;
+  --radius-field: 0.6rem;
+  --radius-box: 0.9rem;
   --size-selector: 0.21875rem;
   --size-field: 0.21875rem;
-  --border: 1.5px;
+  --border: 1px;
   --depth: 1;
   --noise: 0;
 }
 
 @plugin "daisyui/packages/bundle/daisyui-theme" {
   name: "light";
-  default: true;
+  default: false;
   prefersdark: false;
   color-scheme: "light";
   --color-base-100: oklch(98% 0 0);
@@ -102,4 +103,89 @@
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
-/* This file is for your main application CSS */
+/* ===================================================================
+   Astroboard cosmic skin
+   =================================================================== */
+
+:root {
+  --color-brand: #8b6ff0;
+  --cosmic-violet: #8b6ff0;
+  --cosmic-cyan: #4fd6e0;
+  --cosmic-grad: linear-gradient(120deg, #8b6ff0 0%, #6f7ef0 45%, #4fd6e0 100%);
+}
+
+/* Deep-space ground with nebula glows; the starfield canvas floats above it. */
+body {
+  background-color: #0a0e1a;
+  background-image:
+    radial-gradient(1100px 720px at 12% -8%, rgba(139, 111, 240, 0.18), transparent 60%),
+    radial-gradient(1000px 680px at 100% 0%, rgba(79, 214, 224, 0.12), transparent 55%),
+    radial-gradient(900px 700px at 82% 118%, rgba(139, 111, 240, 0.10), transparent 60%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+#stars {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Keep real content above the starfield. */
+body > main,
+body > .app-topbar {
+  position: relative;
+  z-index: 1;
+}
+
+.text-brand { color: var(--color-brand); }
+
+.grad-text {
+  background: var(--cosmic-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Luminous mark used for the logo/board badge. */
+.cosmic-badge {
+  background: var(--cosmic-grad);
+  box-shadow: 0 0 16px rgba(139, 111, 240, 0.55);
+}
+
+/* Frosted panel for board columns and cards. */
+.glass-panel {
+  background: rgba(20, 28, 52, 0.6);
+  border: 1px solid #29365f;
+  backdrop-filter: blur(8px);
+}
+
+.card-cosmic {
+  background: #141d38;
+  border: 1px solid #26325a;
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.card-cosmic:hover {
+  transform: translateY(-2px);
+  border-color: var(--cosmic-violet);
+  box-shadow: 0 0 0 1px rgba(139, 111, 240, 0.5), 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+/* Give the primary button the signature violet→cyan gradient. */
+.btn.btn-primary:not(.btn-soft):not(.btn-ghost) {
+  background-color: transparent;
+  background-image: var(--cosmic-grad);
+  border: none;
+  color: #0a0e1a;
+  font-weight: 700;
+  box-shadow: 0 8px 22px rgba(111, 126, 240, 0.35);
+}
+.btn.btn-primary:not(.btn-soft):not(.btn-ghost):hover {
+  filter: brightness(1.06);
+  box-shadow: 0 10px 28px rgba(111, 126, 240, 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-cosmic { transition: none; }
+}

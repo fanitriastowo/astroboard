@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark" data-theme-source="system">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,56 +8,39 @@
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
-    <script>
-      (() => {
-        const systemTheme = () => matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-
-        const setTheme = (theme) => {
-          if (theme === "system") {
-            localStorage.removeItem("phx:theme");
-            document.documentElement.setAttribute("data-theme", systemTheme());
-            document.documentElement.setAttribute("data-theme-source", "system");
-          } else {
-            localStorage.setItem("phx:theme", theme);
-            document.documentElement.setAttribute("data-theme", theme);
-            document.documentElement.setAttribute("data-theme-source", "user");
-          }
-        };
-        if (!document.documentElement.hasAttribute("data-theme")) {
-          setTheme(localStorage.getItem("phx:theme") || "system");
-        }
-        window.addEventListener("storage", (e) => e.key === "phx:theme" && setTheme(e.newValue || "system"));
-        window.addEventListener("phx:set-theme", (e) => setTheme(e.target.dataset.phxTheme));
-
-        matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
-          if (document.documentElement.getAttribute("data-theme-source") === "system") {
-            document.documentElement.setAttribute("data-theme", systemTheme());
-          }
-        });
-      })();
-    </script>
   </head>
   <body>
-    <ul class="menu menu-horizontal w-full relative z-10 flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-end">
+    <header class="app-topbar sticky top-0 z-20 flex items-center gap-3 px-4 sm:px-6 lg:px-8 h-14 border-b border-base-300/70 bg-base-100/60 backdrop-blur">
+      <.link navigate={~p"/boards"} class="flex items-center gap-2">
+        <span class="cosmic-badge size-6 rounded-lg"></span>
+        <span class="font-semibold tracking-tight">Astroboard</span>
+      </.link>
+      <div class="flex-1"></div>
       <%= if @current_scope do %>
-        <li>
-          {@current_scope.user.email}
-        </li>
-        <li>
-          <.link href={~p"/users/settings"}>Settings</.link>
-        </li>
-        <li>
-          <.link href={~p"/users/log-out"} method="delete">Log out</.link>
-        </li>
+        <span class="hidden sm:inline text-sm text-base-content/60">{@current_scope.user.email}</span>
+        <.link
+          href={~p"/users/settings"}
+          class="text-sm text-base-content/70 hover:text-base-content"
+        >
+          Settings
+        </.link>
+        <.link
+          href={~p"/users/log-out"}
+          method="delete"
+          class="text-sm text-base-content/70 hover:text-base-content"
+        >
+          Log out
+        </.link>
       <% else %>
-        <li>
-          <.link href={~p"/users/register"}>Register</.link>
-        </li>
-        <li>
-          <.link href={~p"/users/log-in"}>Log in</.link>
-        </li>
+        <.link
+          href={~p"/users/log-in"}
+          class="text-sm text-base-content/70 hover:text-base-content"
+        >
+          Log in
+        </.link>
+        <.link href={~p"/users/register"} class="btn btn-primary btn-sm">Sign up</.link>
       <% end %>
-    </ul>
+    </header>
     {@inner_content}
   </body>
 </html>

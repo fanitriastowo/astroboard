@@ -55,10 +55,13 @@ defmodule AstroboardWeb.BoardLive do
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="space-y-6">
         <header class="flex items-center gap-3">
-          <.link navigate={~p"/boards"} class="text-sm text-base-content/60 hover:text-base-content">
+          <.link
+            navigate={~p"/boards"}
+            class="text-sm text-base-content/50 hover:text-base-content transition-colors"
+          >
             &larr; Boards
           </.link>
-          <span class="size-8 rounded-lg bg-gradient-to-br from-violet-500 to-cyan-400 shadow-lg shadow-violet-500/40" />
+          <span class="cosmic-badge size-8 rounded-xl" />
           <h1 id="board-title" class="text-2xl font-bold tracking-tight">{@board.title}</h1>
         </header>
 
@@ -66,7 +69,7 @@ defmodule AstroboardWeb.BoardLive do
           <section
             :for={list <- @lists}
             id={"list-#{list.id}"}
-            class="flex-none w-72 rounded-xl border border-base-300 bg-base-200/60 p-3 space-y-3"
+            class="glass-panel flex-none w-72 rounded-2xl p-3 space-y-3"
           >
             <div class="flex items-center justify-between px-1">
               <h2 class="text-sm font-semibold">{list.title}</h2>
@@ -76,7 +79,7 @@ defmodule AstroboardWeb.BoardLive do
               <article
                 :for={{dom_id, card} <- @streams[stream_name(list.id)]}
                 id={dom_id}
-                class="rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm shadow-sm hover:border-violet-400 transition-colors cursor-pointer"
+                class="card-cosmic rounded-xl px-3 py-2.5 text-sm cursor-pointer"
               >
                 {card.title}
               </article>
@@ -93,7 +96,7 @@ defmodule AstroboardWeb.BoardLive do
                 name="title"
                 autocomplete="off"
                 placeholder="+ Add a card"
-                class="input input-sm input-bordered w-full text-sm"
+                class="input input-sm input-bordered w-full text-sm bg-base-100/40"
               />
             </form>
           </section>
@@ -101,14 +104,14 @@ defmodule AstroboardWeb.BoardLive do
           <form
             id="add-list"
             phx-submit="add_list"
-            class="flex-none w-72 rounded-xl border border-dashed border-base-300 p-3"
+            class="flex-none w-72 rounded-2xl border border-dashed border-base-300 p-3"
           >
             <input
               type="text"
               name="title"
               autocomplete="off"
               placeholder="+ Add another list"
-              class="input input-sm input-bordered w-full text-sm"
+              class="input input-sm input-bordered w-full text-sm bg-transparent"
             />
           </form>
         </div>
