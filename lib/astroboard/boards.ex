@@ -40,7 +40,7 @@ defmodule Astroboard.Boards do
     %List{board_id: board_id, position: next_position(List, :board_id, board_id)}
     |> List.changeset(attrs)
     |> Repo.insert()
-    |> notify(board_id)
+    |> broadcast_structure(board_id)
   end
 
   @doc "Renames/updates a list. Broadcasts to board subscribers on success."
@@ -50,7 +50,7 @@ defmodule Astroboard.Boards do
     list
     |> List.changeset(attrs)
     |> Repo.update()
-    |> notify(list.board_id)
+    |> broadcast_structure(list.board_id)
   end
 
   @doc "Deletes a list and its cards. Broadcasts to board subscribers."
@@ -59,7 +59,7 @@ defmodule Astroboard.Boards do
 
     list
     |> Repo.delete()
-    |> notify(list.board_id)
+    |> broadcast_structure(list.board_id)
   end
 
   @doc "Creates a card appended to the end of the given list. Broadcasts on success."
@@ -69,7 +69,13 @@ defmodule Astroboard.Boards do
     %Card{list_id: list.id, position: next_position(Card, :list_id, list.id)}
     |> Card.changeset(attrs)
     |> Repo.insert()
-    |> notify(list.board_id)
+    |> broadcast_cards(list.board_id, [list.id])
+  end
+
+  @doc "Returns the scope user's cards for a list, ordered by position."
+  def list_cards(%Scope{} = scope, list_id) do
+    list = get_list!(scope, list_id)
+    Repo.all(from c in Card, where: c.list_id == ^list.id, order_by: c.position)
   end
 
   @doc """
@@ -111,7 +117,7 @@ defmodule Astroboard.Boards do
     card
     |> Card.changeset(attrs)
     |> Repo.update()
-    |> notify(board_id_for_card(card))
+    |> broadcast_cards(board_id_for_card(card), [card.list_id])
   end
 
   @doc "Deletes a card. Broadcasts to board subscribers."
@@ -121,7 +127,7 @@ defmodule Astroboard.Boards do
 
     card
     |> Repo.delete()
-    |> notify(board_id)
+    |> broadcast_cards(board_id, [card.list_id])
   end
 
   @doc """
@@ -165,7 +171,7 @@ defmodule Astroboard.Boards do
         Repo.get!(Card, card.id)
       end)
 
-    notify(result, target_list.board_id)
+    broadcast_cards(result, target_list.board_id, Enum.uniq([source_list_id, target_list.id]))
   end
 
   defp reindex(ids) do
@@ -193,15 +199,34 @@ defmodule Astroboard.Boards do
     Phoenix.PubSub.subscribe(Astroboard.PubSub, topic(board_id))
   end
 
-  # Broadcast a board change to all subscribers, tagging the originating process
-  # so the acting LiveView can ignore its own event (it already updated locally).
-  # Passes {:ok, _} / {:error, _} results straight through for pipelining.
-  defp notify({:ok, _} = result, board_id) when not is_nil(board_id) do
-    Phoenix.PubSub.broadcast(Astroboard.PubSub, topic(board_id), {:board_updated, self()})
+  # Broadcasts tag the originating process so the acting LiveView can ignore its
+  # own event (it already updated locally). Results pass through for pipelining.
+
+  # A card-level change: subscribers restream only the affected columns.
+  defp broadcast_cards({:ok, _} = result, board_id, list_ids) when not is_nil(board_id) do
+    Phoenix.PubSub.broadcast(
+      Astroboard.PubSub,
+      topic(board_id),
+      {:cards_changed, self(), list_ids}
+    )
+
     result
   end
 
-  defp notify(result, _board_id), do: result
+  defp broadcast_cards(result, _board_id, _list_ids), do: result
+
+  # A structural change (lists added/renamed/removed): subscribers reload.
+  defp broadcast_structure({:ok, _} = result, board_id) when not is_nil(board_id) do
+    Phoenix.PubSub.broadcast(
+      Astroboard.PubSub,
+      topic(board_id),
+      {:board_structure_changed, self()}
+    )
+
+    result
+  end
+
+  defp broadcast_structure(result, _board_id), do: result
 
   defp authorize_board!(%Scope{} = scope, board_id) do
     Repo.one!(

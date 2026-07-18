@@ -145,13 +145,23 @@ defmodule AstroboardWeb.BoardLive do
   end
 
   @impl true
-  # Ignore our own broadcast — the acting event already updated locally.
-  def handle_info({:board_updated, from}, socket) when from != self() do
-    {:noreply, reload_board(socket)}
+  # Ignore our own broadcasts — the acting event already updated locally.
+  def handle_info({:cards_changed, from, _list_ids}, socket) when from == self() do
+    {:noreply, socket}
   end
 
-  def handle_info({:board_updated, _from}, socket) do
+  def handle_info({:board_structure_changed, from}, socket) when from == self() do
     {:noreply, socket}
+  end
+
+  # A remote viewer: restream only the affected columns for card changes...
+  def handle_info({:cards_changed, _from, list_ids}, socket) do
+    {:noreply, restream_columns(socket, list_ids)}
+  end
+
+  # ...and reload fully for structural (list add/rename/remove) changes.
+  def handle_info({:board_structure_changed, _from}, socket) do
+    {:noreply, reload_board(socket)}
   end
 
   # Re-fetch the board and reset every column's card stream to the canonical order.
@@ -177,6 +187,21 @@ defmodule AstroboardWeb.BoardLive do
 
   defp list_index(lists, list_id) do
     Enum.find_index(lists, &(to_string(&1.id) == to_string(list_id)))
+  end
+
+  # Re-fetch and reset only the given lists' card streams (targeted update for
+  # remote viewers, instead of reloading the whole board).
+  defp restream_columns(socket, list_ids) do
+    Enum.reduce(list_ids, socket, fn list_id, acc ->
+      case list_index(acc.assigns.lists, list_id) do
+        nil ->
+          acc
+
+        index ->
+          cards = Boards.list_cards(acc.assigns.current_scope, list_id)
+          stream(acc, stream_name(index), cards, reset: true)
+      end
+    end)
   end
 
   defp to_int(value) when is_integer(value), do: value

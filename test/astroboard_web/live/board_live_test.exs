@@ -214,6 +214,42 @@ defmodule AstroboardWeb.BoardLiveTest do
     end
   end
 
+  describe "Real-time cross-client" do
+    setup [:register_and_log_in_user, :create_board]
+
+    test "a new card appears live for another viewer", %{
+      conn: conn,
+      board: board,
+      backlog: backlog
+    } do
+      {:ok, view_a, _html} = live(conn, ~p"/boards/#{board.id}")
+      {:ok, view_b, _html} = live(conn, ~p"/boards/#{board.id}")
+
+      view_a
+      |> form("#add-card-#{backlog.id}", %{"title" => "Realtime card"})
+      |> render_submit()
+
+      assert has_element?(view_b, "#cards-#{backlog.id}", "Realtime card")
+    end
+
+    test "a renamed list appears live for another viewer", %{
+      conn: conn,
+      board: board,
+      backlog: backlog
+    } do
+      {:ok, view_a, _html} = live(conn, ~p"/boards/#{board.id}")
+      {:ok, view_b, _html} = live(conn, ~p"/boards/#{board.id}")
+
+      view_a |> element("#list-edit-#{backlog.id}") |> render_click()
+
+      view_a
+      |> form("#rename-list-#{backlog.id}", %{"title" => "Renamed live"})
+      |> render_submit()
+
+      assert has_element?(view_b, "#list-#{backlog.id}", "Renamed live")
+    end
+  end
+
   describe "authentication" do
     test "redirects to log in when unauthenticated", %{conn: conn} do
       assert {:error, {:redirect, %{to: path}}} = live(conn, ~p"/boards")

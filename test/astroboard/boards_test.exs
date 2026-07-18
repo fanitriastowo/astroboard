@@ -53,7 +53,7 @@ defmodule Astroboard.BoardsTest do
       {:ok, board} = Boards.create_board(scope, %{title: "Board"})
       Boards.subscribe(board.id)
       assert {:ok, _} = Boards.create_list(scope, board, %{title: "Backlog"})
-      assert_receive {:board_updated, _from}
+      assert_receive {:board_structure_changed, _from}
     end
 
     test "create_card/2 broadcasts to board subscribers", %{scope: scope} do
@@ -61,7 +61,7 @@ defmodule Astroboard.BoardsTest do
       {:ok, list} = Boards.create_list(scope, board, %{title: "Backlog"})
       Boards.subscribe(board.id)
       assert {:ok, _} = Boards.create_card(scope, list, %{title: "A card"})
-      assert_receive {:board_updated, _from}
+      assert_receive {:cards_changed, _from, _}
     end
   end
 
@@ -130,7 +130,7 @@ defmodule Astroboard.BoardsTest do
     } do
       Boards.subscribe(board.id)
       assert {:ok, _} = Boards.delete_card(scope, card)
-      assert_receive {:board_updated, _from}
+      assert_receive {:cards_changed, _from, _}
     end
   end
 
@@ -158,7 +158,7 @@ defmodule Astroboard.BoardsTest do
     } do
       Boards.subscribe(board.id)
       assert {:ok, _} = Boards.update_list(scope, list, %{title: "Renamed"})
-      assert_receive {:board_updated, _from}
+      assert_receive {:board_structure_changed, _from}
     end
 
     test "delete_list/1 broadcasts to board subscribers", %{
@@ -168,7 +168,7 @@ defmodule Astroboard.BoardsTest do
     } do
       Boards.subscribe(board.id)
       assert {:ok, _} = Boards.delete_list(scope, list)
-      assert_receive {:board_updated, _from}
+      assert_receive {:board_structure_changed, _from}
     end
 
     test "delete_list/1 removes the list and its cards", %{
@@ -228,7 +228,7 @@ defmodule Astroboard.BoardsTest do
     test "broadcasts to board subscribers", %{scope: scope, board: board, list_b: list_b, a1: a1} do
       Boards.subscribe(board.id)
       assert {:ok, _} = Boards.move_card(scope, a1.id, list_b.id, 0)
-      assert_receive {:board_updated, _from}
+      assert_receive {:cards_changed, _from, _}
     end
 
     test "raises for another user's card", %{list_a: list_a, a1: a1} do
