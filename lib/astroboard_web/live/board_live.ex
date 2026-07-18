@@ -19,6 +19,8 @@ defmodule AstroboardWeb.BoardLive do
       |> assign(:selected_card, nil)
       |> assign(:card_form, nil)
       |> assign(:editing_list_id, nil)
+      |> assign(:members, [])
+      |> assign(:owner, nil)
 
     {:ok, stream_lists(socket, board.lists)}
   end
@@ -32,6 +34,10 @@ defmodule AstroboardWeb.BoardLive do
      socket
      |> assign(:selected_card, card)
      |> assign(:card_form, to_form(Boards.change_card(card)))}
+  end
+
+  def handle_params(_params, _uri, %{assigns: %{live_action: :members}} = socket) do
+    {:noreply, socket |> assign(selected_card: nil, card_form: nil) |> load_members()}
   end
 
   def handle_params(_params, _uri, socket) do
@@ -146,6 +152,32 @@ defmodule AstroboardWeb.BoardLive do
     end
   end
 
+  def handle_event("invite_member", %{"email" => email}, socket) do
+    if owner?(socket) do
+      case Boards.add_member(socket.assigns.current_scope, socket.assigns.board.id, email) do
+        {:ok, _} ->
+          {:noreply, socket |> put_flash(:info, "Member added.") |> load_members()}
+
+        {:error, :not_found} ->
+          {:noreply, put_flash(socket, :error, "No user found with that email.")}
+
+        {:error, :already_member} ->
+          {:noreply, put_flash(socket, :error, "That user is already a member.")}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("remove_member", %{"user_id" => user_id}, socket) do
+    if owner?(socket) do
+      Boards.remove_member(socket.assigns.current_scope, socket.assigns.board.id, to_int(user_id))
+      {:noreply, load_members(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
   @impl true
   # Ignore our own broadcasts — the acting event already updated locally.
   def handle_info({:cards_changed, from, _list_ids}, socket) when from == self() do
@@ -191,6 +223,17 @@ defmodule AstroboardWeb.BoardLive do
     Enum.find_index(lists, &(to_string(&1.id) == to_string(list_id)))
   end
 
+  defp owner?(socket) do
+    socket.assigns.board.user_id == socket.assigns.current_scope.user.id
+  end
+
+  defp load_members(socket) do
+    %{owner: owner, members: members} =
+      Boards.list_members(socket.assigns.current_scope, socket.assigns.board.id)
+
+    assign(socket, owner: owner, members: members)
+  end
+
   # Re-fetch and reset only the given lists' card streams (targeted update for
   # remote viewers, instead of reloading the whole board).
   defp restream_columns(socket, list_ids) do
@@ -231,6 +274,10 @@ defmodule AstroboardWeb.BoardLive do
           </.link>
           <span class="cosmic-badge size-8 rounded-xl" />
           <h1 id="board-title" class="text-2xl font-bold tracking-tight">{@board.title}</h1>
+          <span class="flex-1"></span>
+          <.link patch={~p"/boards/#{@board.id}/members"} class="btn btn-sm" id="members-button">
+            <.icon name="hero-user-group" class="size-4" /> Members
+          </.link>
         </header>
 
         <div id="board-lists" class="flex gap-4 overflow-x-auto pb-4 items-start">
@@ -337,6 +384,13 @@ defmodule AstroboardWeb.BoardLive do
       </div>
 
       <.card_modal :if={@selected_card} card_form={@card_form} board_id={@board.id} />
+      <.members_modal
+        :if={@live_action == :members}
+        board_id={@board.id}
+        owner={@owner}
+        members={@members}
+        can_manage={@owner && @owner.id == @current_scope.user.id}
+      />
     </Layouts.app>
     """
   end

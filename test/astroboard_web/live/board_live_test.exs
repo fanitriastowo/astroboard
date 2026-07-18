@@ -271,6 +271,47 @@ defmodule AstroboardWeb.BoardLiveTest do
     end
   end
 
+  describe "Members" do
+    setup [:register_and_log_in_user, :create_board]
+
+    test "owner opens the members modal with an invite form", %{conn: conn, board: board} do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/members")
+
+      assert has_element?(view, "#members-modal")
+      assert has_element?(view, "#invite-form")
+    end
+
+    test "owner invites an existing user by email", %{conn: conn, board: board} do
+      invitee = Astroboard.AccountsFixtures.user_scope_fixture()
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/members")
+
+      view |> form("#invite-form", %{"email" => invitee.user.email}) |> render_submit()
+
+      assert has_element?(view, "#members-modal", invitee.user.email)
+    end
+
+    test "inviting an unknown email shows an error", %{conn: conn, board: board} do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/members")
+
+      html =
+        view |> form("#invite-form", %{"email" => "nobody@example.com"}) |> render_submit()
+
+      assert html =~ "No user"
+    end
+
+    test "owner removes a member", %{conn: conn, scope: scope, board: board} do
+      invitee = Astroboard.AccountsFixtures.user_scope_fixture()
+      {:ok, _} = Boards.add_member(scope, board.id, invitee.user.email)
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/members")
+      assert has_element?(view, "#members-modal", invitee.user.email)
+
+      view |> element("#member-remove-#{invitee.user.id}") |> render_click()
+
+      refute has_element?(view, "#members-modal", invitee.user.email)
+    end
+  end
+
   describe "authentication" do
     test "redirects to log in when unauthenticated", %{conn: conn} do
       assert {:error, {:redirect, %{to: path}}} = live(conn, ~p"/boards")
