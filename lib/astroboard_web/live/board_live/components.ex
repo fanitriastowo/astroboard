@@ -98,6 +98,7 @@ defmodule AstroboardWeb.BoardLive.Components do
   """
   attr :card_form, :any, required: true, doc: "the to_form/1 changeset for the card"
   attr :board_id, :any, required: true, doc: "the board id, for close/cancel patches"
+  attr :card, :any, required: true, doc: "the selected card, with checklist_items preloaded"
 
   def card_modal(assigns) do
     ~H"""
@@ -154,8 +155,83 @@ defmodule AstroboardWeb.BoardLive.Components do
             </div>
           </div>
         </.form>
+
+        <div class="space-y-3 border-t border-base-300/60 pt-4">
+          <div class="flex items-center justify-between">
+            <span class="mini-label" style="margin:0">Checklist</span>
+            <span class="font-mono text-xs text-base-content/50">
+              {checklist_done(@card)}/{checklist_total(@card)}
+            </span>
+          </div>
+
+          <div class="h-1.5 rounded-full bg-base-300/60 overflow-hidden">
+            <div
+              class="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400"
+              style={"width: #{checklist_pct(@card)}%"}
+            >
+            </div>
+          </div>
+
+          <div id="checklist-items" class="space-y-1">
+            <div
+              :for={item <- @card.checklist_items}
+              id={"checklist-item-#{item.id}"}
+              class="flex items-center gap-2 group"
+            >
+              <button
+                type="button"
+                phx-click="toggle_checklist_item"
+                phx-value-item_id={item.id}
+                class={[
+                  "size-4 rounded border flex items-center justify-center shrink-0",
+                  item.done && "bg-gradient-to-br from-violet-500 to-cyan-400 border-transparent",
+                  !item.done && "border-base-300"
+                ]}
+                aria-label="Toggle item"
+              >
+                <.icon :if={item.done} name="hero-check" class="size-3 text-base-100" />
+              </button>
+              <span class={["flex-1 text-sm", item.done && "line-through text-base-content/40"]}>
+                {item.content}
+              </span>
+              <button
+                type="button"
+                phx-click="delete_checklist_item"
+                phx-value-item_id={item.id}
+                class="text-base-content/40 hover:text-error opacity-0 group-hover:opacity-100"
+                aria-label="Delete item"
+              >
+                <.icon name="hero-x-mark" class="size-4" />
+              </button>
+            </div>
+          </div>
+
+          <form id="checklist-form" phx-submit="add_checklist_item" class="flex gap-2">
+            <input
+              type="text"
+              name="content"
+              autocomplete="off"
+              placeholder="Add an item"
+              class="input input-xs input-bordered w-full text-sm bg-base-100/40"
+            />
+            <button type="submit" class="btn btn-xs">Add</button>
+          </form>
+        </div>
       </div>
     </div>
     """
+  end
+
+  defp checklist_total(%{checklist_items: items}) when is_list(items), do: length(items)
+  defp checklist_total(_card), do: 0
+
+  defp checklist_done(%{checklist_items: items}) when is_list(items),
+    do: Enum.count(items, & &1.done)
+
+  defp checklist_done(_card), do: 0
+
+  defp checklist_pct(card) do
+    total = checklist_total(card)
+    if total == 0, do: 0, else: round(checklist_done(card) / total * 100)
   end
 end

@@ -9,6 +9,7 @@ defmodule Astroboard.Boards.Card do
     field :position, :integer
 
     belongs_to :list, Astroboard.Boards.List
+    has_many :checklist_items, Astroboard.Boards.ChecklistItem, preload_order: [asc: :position]
 
     timestamps(type: :utc_datetime)
   end

@@ -152,6 +152,32 @@ defmodule AstroboardWeb.BoardLive do
     end
   end
 
+  def handle_event(event, _params, %{assigns: %{selected_card: nil}} = socket)
+      when event in ~w(add_checklist_item toggle_checklist_item delete_checklist_item) do
+    {:noreply, socket}
+  end
+
+  def handle_event("add_checklist_item", %{"content" => content}, socket) do
+    case Boards.add_checklist_item(
+           socket.assigns.current_scope,
+           socket.assigns.selected_card.id,
+           content
+         ) do
+      {:ok, _} -> {:noreply, reload_selected_card(socket)}
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_checklist_item", %{"item_id" => item_id}, socket) do
+    Boards.toggle_checklist_item(socket.assigns.current_scope, to_int(item_id))
+    {:noreply, reload_selected_card(socket)}
+  end
+
+  def handle_event("delete_checklist_item", %{"item_id" => item_id}, socket) do
+    Boards.delete_checklist_item(socket.assigns.current_scope, to_int(item_id))
+    {:noreply, reload_selected_card(socket)}
+  end
+
   def handle_event("invite_member", %{"email" => email}, socket) do
     if owner?(socket) do
       case Boards.add_member(socket.assigns.current_scope, socket.assigns.board.id, email) do
@@ -225,6 +251,25 @@ defmodule AstroboardWeb.BoardLive do
 
   defp owner?(socket) do
     socket.assigns.board.user_id == socket.assigns.current_scope.user.id
+  end
+
+  defp checklist_total(%{checklist_items: items}) when is_list(items), do: length(items)
+  defp checklist_total(_card), do: 0
+
+  defp checklist_done(%{checklist_items: items}) when is_list(items),
+    do: Enum.count(items, & &1.done)
+
+  defp checklist_done(_card), do: 0
+
+  # Re-fetch the open card (with checklist items) and refresh its card-face tile.
+  defp reload_selected_card(socket) do
+    scope = socket.assigns.current_scope
+    card = Boards.get_board_card!(scope, socket.assigns.board.id, socket.assigns.selected_card.id)
+    index = list_index(socket.assigns.lists, card.list_id)
+
+    socket
+    |> assign(:selected_card, card)
+    |> stream_insert(stream_name(index), card)
   end
 
   # Amber when the due date is today or past, muted otherwise.
@@ -355,14 +400,20 @@ defmodule AstroboardWeb.BoardLive do
                 class="card-cosmic block rounded-xl px-3 py-2.5 text-sm cursor-grab active:cursor-grabbing"
               >
                 {card.title}
-                <span
-                  :if={card.due_date}
-                  class={["mt-1 flex items-center gap-1 font-mono text-xs", due_class(card.due_date)]}
-                >
-                  <.icon name="hero-clock" class="size-3" /> {Calendar.strftime(
-                    card.due_date,
-                    "%b %d"
-                  )}
+                <span class="mt-1 flex items-center gap-3 font-mono text-xs text-base-content/50">
+                  <span
+                    :if={card.due_date}
+                    class={["flex items-center gap-1", due_class(card.due_date)]}
+                  >
+                    <.icon name="hero-clock" class="size-3" /> {Calendar.strftime(
+                      card.due_date,
+                      "%b %d"
+                    )}
+                  </span>
+                  <span :if={checklist_total(card) > 0} class="flex items-center gap-1">
+                    <.icon name="hero-check-circle" class="size-3" />
+                    {checklist_done(card)}/{checklist_total(card)}
+                  </span>
                 </span>
               </.link>
             </div>
@@ -399,7 +450,12 @@ defmodule AstroboardWeb.BoardLive do
         </div>
       </div>
 
-      <.card_modal :if={@selected_card} card_form={@card_form} board_id={@board.id} />
+      <.card_modal
+        :if={@selected_card}
+        card={@selected_card}
+        card_form={@card_form}
+        board_id={@board.id}
+      />
       <.members_modal
         :if={@live_action == :members}
         board_id={@board.id}

@@ -171,6 +171,17 @@ defmodule AstroboardWeb.BoardLiveTest do
       assert has_element?(view, "#cards-#{backlog.id}", "Aug 01")
     end
 
+    test "adds a checklist item and shows progress", %{conn: conn, board: board, card: card} do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/cards/#{card.id}")
+
+      view
+      |> form("#checklist-form", %{"content" => "Write the tests"})
+      |> render_submit()
+
+      assert has_element?(view, "#checklist-items", "Write the tests")
+      assert has_element?(view, "#card-modal", "0/1")
+    end
+
     test "deletes a card", %{conn: conn, board: board, backlog: backlog, card: card} do
       {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/cards/#{card.id}")
 

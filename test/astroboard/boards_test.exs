@@ -33,6 +33,49 @@ defmodule Astroboard.BoardsTest do
     end
   end
 
+  describe "checklist items" do
+    setup %{scope: scope} do
+      {:ok, board} = Boards.create_board(scope, %{title: "B"})
+      {:ok, list} = Boards.create_list(scope, board, %{title: "L"})
+      {:ok, card} = Boards.create_card(scope, list, %{title: "C"})
+      %{board: board, card: card}
+    end
+
+    test "add_checklist_item/3 appends with incrementing positions", %{scope: scope, card: card} do
+      {:ok, first} = Boards.add_checklist_item(scope, card.id, "First")
+      {:ok, second} = Boards.add_checklist_item(scope, card.id, "Second")
+      assert first.position == 0
+      assert second.position == 1
+      assert first.card_id == card.id
+      refute first.done
+    end
+
+    test "toggle_checklist_item/2 flips done", %{scope: scope, card: card} do
+      {:ok, item} = Boards.add_checklist_item(scope, card.id, "Item")
+      {:ok, toggled} = Boards.toggle_checklist_item(scope, item.id)
+      assert toggled.done
+      {:ok, again} = Boards.toggle_checklist_item(scope, toggled.id)
+      refute again.done
+    end
+
+    test "delete_checklist_item/2 removes it", %{scope: scope, card: card} do
+      {:ok, item} = Boards.add_checklist_item(scope, card.id, "Item")
+      assert {:ok, _} = Boards.delete_checklist_item(scope, item.id)
+
+      assert_raise Ecto.NoResultsError, fn ->
+        Boards.toggle_checklist_item(scope, item.id)
+      end
+    end
+
+    test "a non-member cannot add a checklist item", %{card: card} do
+      stranger = user_scope_fixture()
+
+      assert_raise Ecto.NoResultsError, fn ->
+        Boards.add_checklist_item(stranger, card.id, "nope")
+      end
+    end
+  end
+
   describe "board membership and access" do
     setup %{scope: owner} do
       {:ok, board} = Boards.create_board(owner, %{title: "Shared"})

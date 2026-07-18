@@ -7,7 +7,7 @@ defmodule Astroboard.Boards do
   alias Astroboard.Repo
   alias Astroboard.Accounts
   alias Astroboard.Accounts.Scope
-  alias Astroboard.Boards.{Board, BoardMember, Card, List}
+  alias Astroboard.Boards.{Board, BoardMember, Card, ChecklistItem, List}
 
   @doc "Lists the boards the scope's user can access (owned or a member of)."
   def list_boards(%Scope{} = scope) do
@@ -29,7 +29,7 @@ defmodule Astroboard.Boards do
   def get_board!(%Scope{} = scope, id) do
     from(b in Board, as: :board, where: b.id == ^id, where: ^board_access(scope))
     |> Repo.one!()
-    |> Repo.preload(lists: :cards)
+    |> Repo.preload(lists: [cards: :checklist_items])
   end
 
   @doc "Creates a board owned by the scope's user."
@@ -103,7 +103,9 @@ defmodule Astroboard.Boards do
   @doc "Returns the scope user's cards for a list, ordered by position."
   def list_cards(%Scope{} = scope, list_id) do
     list = get_list!(scope, list_id)
+
     Repo.all(from c in Card, where: c.list_id == ^list.id, order_by: c.position)
+    |> Repo.preload(:checklist_items)
   end
 
   @doc """
@@ -140,6 +142,7 @@ defmodule Astroboard.Boards do
         where: c.id == ^card_id and l.board_id == ^board_id,
         where: ^board_access(scope)
     )
+    |> Repo.preload(:checklist_items)
   end
 
   @doc "Updates a card's editable fields (title, description). Broadcasts on success."
@@ -160,6 +163,53 @@ defmodule Astroboard.Boards do
     card
     |> Repo.delete()
     |> broadcast_cards(board_id, [card.list_id])
+  end
+
+  ## Checklist items
+
+  @doc "Adds a checklist item to a card the scope user can access."
+  def add_checklist_item(%Scope{} = scope, card_id, content) do
+    card = get_card!(scope, card_id)
+
+    %ChecklistItem{card_id: card.id, position: next_position(ChecklistItem, :card_id, card.id)}
+    |> ChecklistItem.changeset(%{content: content})
+    |> Repo.insert()
+    |> broadcast_cards(board_id_for_card(card), [card.list_id])
+  end
+
+  @doc "Toggles a checklist item's done state."
+  def toggle_checklist_item(%Scope{} = scope, item_id) do
+    item = get_checklist_item!(scope, item_id)
+
+    item
+    |> ChecklistItem.changeset(%{done: !item.done})
+    |> Repo.update()
+    |> broadcast_cards(board_id_for_card(item.card), [item.card.list_id])
+  end
+
+  @doc "Deletes a checklist item."
+  def delete_checklist_item(%Scope{} = scope, item_id) do
+    item = get_checklist_item!(scope, item_id)
+
+    item
+    |> Repo.delete()
+    |> broadcast_cards(board_id_for_card(item.card), [item.card.list_id])
+  end
+
+  defp get_checklist_item!(%Scope{} = scope, id) do
+    Repo.one!(
+      from i in ChecklistItem,
+        join: c in Card,
+        on: c.id == i.card_id,
+        join: l in List,
+        on: l.id == c.list_id,
+        join: b in Board,
+        as: :board,
+        on: b.id == l.board_id,
+        where: i.id == ^id,
+        where: ^board_access(scope),
+        preload: [card: c]
+    )
   end
 
   # Temporary positions used during reindexing so intermediate states never
