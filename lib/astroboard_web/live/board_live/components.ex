@@ -236,6 +236,33 @@ defmodule AstroboardWeb.BoardLive.Components do
             <button type="submit" class="btn btn-xs">Add</button>
           </form>
         </div>
+
+        <div class="space-y-3 border-t border-base-300/60 pt-4">
+          <span class="mini-label" style="margin:0">Activity</span>
+
+          <form id="comment-form" phx-submit="add_comment" class="flex gap-2">
+            <input
+              type="text"
+              name="body"
+              autocomplete="off"
+              placeholder="Write a comment…"
+              class="input input-sm input-bordered w-full text-sm bg-base-100/40"
+            />
+            <button type="submit" class="btn btn-sm">Post</button>
+          </form>
+
+          <div id="comments" class="space-y-3">
+            <div :for={comment <- @card.comments} class="flex gap-2 text-sm">
+              <span class="size-6 rounded-full bg-base-300 shrink-0 mt-0.5" />
+              <div class="min-w-0">
+                <p class="text-xs text-base-content/50">
+                  {comment.user.email} · {Calendar.strftime(comment.inserted_at, "%b %d, %H:%M")}
+                </p>
+                <p class="break-words">{comment.body}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     """

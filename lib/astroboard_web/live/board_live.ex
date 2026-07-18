@@ -153,8 +153,15 @@ defmodule AstroboardWeb.BoardLive do
   end
 
   def handle_event(event, _params, %{assigns: %{selected_card: nil}} = socket)
-      when event in ~w(add_checklist_item toggle_checklist_item delete_checklist_item) do
+      when event in ~w(add_checklist_item toggle_checklist_item delete_checklist_item add_comment) do
     {:noreply, socket}
+  end
+
+  def handle_event("add_comment", %{"body" => body}, socket) do
+    case Boards.add_comment(socket.assigns.current_scope, socket.assigns.selected_card.id, body) do
+      {:ok, _} -> {:noreply, reload_selected_card(socket)}
+      _ -> {:noreply, socket}
+    end
   end
 
   def handle_event("toggle_label", _params, %{assigns: %{selected_card: nil}} = socket) do

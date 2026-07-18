@@ -11,6 +11,7 @@ defmodule Astroboard.Boards.Card do
     belongs_to :list, Astroboard.Boards.List
     has_many :checklist_items, Astroboard.Boards.ChecklistItem, preload_order: [asc: :position]
     has_many :card_labels, Astroboard.Boards.CardLabel, preload_order: [asc: :color]
+    has_many :comments, Astroboard.Boards.CardComment, preload_order: [asc: :inserted_at]
 
     timestamps(type: :utc_datetime)
   end

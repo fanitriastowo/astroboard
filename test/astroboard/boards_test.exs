@@ -33,6 +33,34 @@ defmodule Astroboard.BoardsTest do
     end
   end
 
+  describe "card comments" do
+    setup %{scope: scope} do
+      {:ok, board} = Boards.create_board(scope, %{title: "B"})
+      {:ok, list} = Boards.create_list(scope, board, %{title: "L"})
+      {:ok, card} = Boards.create_card(scope, list, %{title: "C"})
+      %{card: card}
+    end
+
+    test "add_comment/3 records a comment authored by the scope user", %{scope: scope, card: card} do
+      assert {:ok, comment} = Boards.add_comment(scope, card.id, "Nice work")
+      assert comment.body == "Nice work"
+      assert comment.user_id == scope.user.id
+      assert comment.card_id == card.id
+    end
+
+    test "add_comment/3 rejects a blank body", %{scope: scope, card: card} do
+      assert {:error, %Ecto.Changeset{}} = Boards.add_comment(scope, card.id, "")
+    end
+
+    test "a non-member cannot comment", %{card: card} do
+      stranger = user_scope_fixture()
+
+      assert_raise Ecto.NoResultsError, fn ->
+        Boards.add_comment(stranger, card.id, "hi")
+      end
+    end
+  end
+
   describe "card labels" do
     setup %{scope: scope} do
       {:ok, board} = Boards.create_board(scope, %{title: "B"})

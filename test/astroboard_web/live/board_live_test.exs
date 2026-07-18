@@ -199,6 +199,14 @@ defmodule AstroboardWeb.BoardLiveTest do
       assert has_element?(view, "#card-modal", "0/1")
     end
 
+    test "posts a comment", %{conn: conn, board: board, card: card} do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/cards/#{card.id}")
+
+      view |> form("#comment-form", %{"body" => "Looks good to me"}) |> render_submit()
+
+      assert has_element?(view, "#comments", "Looks good to me")
+    end
+
     test "deletes a card", %{conn: conn, board: board, backlog: backlog, card: card} do
       {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/cards/#{card.id}")
 

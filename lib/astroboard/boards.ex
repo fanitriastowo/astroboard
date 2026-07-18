@@ -7,7 +7,16 @@ defmodule Astroboard.Boards do
   alias Astroboard.Repo
   alias Astroboard.Accounts
   alias Astroboard.Accounts.Scope
-  alias Astroboard.Boards.{Board, BoardMember, Card, CardLabel, ChecklistItem, List}
+
+  alias Astroboard.Boards.{
+    Board,
+    BoardMember,
+    Card,
+    CardComment,
+    CardLabel,
+    ChecklistItem,
+    List
+  }
 
   @label_colors ~w(violet cyan magenta amber green coral)
 
@@ -144,7 +153,7 @@ defmodule Astroboard.Boards do
         where: c.id == ^card_id and l.board_id == ^board_id,
         where: ^board_access(scope)
     )
-    |> Repo.preload([:checklist_items, :card_labels])
+    |> Repo.preload([:checklist_items, :card_labels, comments: :user])
   end
 
   @doc "Updates a card's editable fields (title, description). Broadcasts on success."
@@ -165,6 +174,18 @@ defmodule Astroboard.Boards do
     card
     |> Repo.delete()
     |> broadcast_cards(board_id, [card.list_id])
+  end
+
+  ## Comments
+
+  @doc "Adds a comment authored by the scope user to a card they can access."
+  def add_comment(%Scope{} = scope, card_id, body) do
+    card = get_card!(scope, card_id)
+
+    %CardComment{card_id: card.id, user_id: scope.user.id}
+    |> CardComment.changeset(%{body: body})
+    |> Repo.insert()
+    |> broadcast_cards(board_id_for_card(card), [card.list_id])
   end
 
   ## Labels
