@@ -99,6 +99,7 @@ defmodule AstroboardWeb.BoardLive.Components do
   attr :card_form, :any, required: true, doc: "the to_form/1 changeset for the card"
   attr :board_id, :any, required: true, doc: "the board id, for close/cancel patches"
   attr :card, :any, required: true, doc: "the selected card, with checklist_items preloaded"
+  attr :colors, :list, required: true, doc: "the label color palette"
 
   def card_modal(assigns) do
     ~H"""
@@ -126,6 +127,24 @@ defmodule AstroboardWeb.BoardLive.Components do
           >
             <.icon name="hero-x-mark" class="size-5" />
           </.link>
+        </div>
+
+        <div class="space-y-2">
+          <span class="mini-label" style="margin:0">Labels</span>
+          <div class="flex gap-2">
+            <button
+              :for={color <- @colors}
+              type="button"
+              phx-click="toggle_label"
+              phx-value-color={color}
+              class={[
+                "h-6 w-10 rounded transition",
+                label_bg(color),
+                (color in active_colors(@card) && "ring-2 ring-base-content/70") || "opacity-40"
+              ]}
+              aria-label={"Toggle #{color} label"}
+            ></button>
+          </div>
         </div>
 
         <.form for={@card_form} id="card-form" phx-submit="save_card" class="space-y-4">
@@ -234,4 +253,17 @@ defmodule AstroboardWeb.BoardLive.Components do
     total = checklist_total(card)
     if total == 0, do: 0, else: round(checklist_done(card) / total * 100)
   end
+
+  defp active_colors(%{card_labels: labels}) when is_list(labels),
+    do: Enum.map(labels, & &1.color)
+
+  defp active_colors(_card), do: []
+
+  defp label_bg("violet"), do: "bg-violet-500"
+  defp label_bg("cyan"), do: "bg-cyan-400"
+  defp label_bg("magenta"), do: "bg-pink-500"
+  defp label_bg("amber"), do: "bg-amber-400"
+  defp label_bg("green"), do: "bg-emerald-400"
+  defp label_bg("coral"), do: "bg-rose-400"
+  defp label_bg(_color), do: "bg-base-300"
 end

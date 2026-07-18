@@ -33,6 +33,42 @@ defmodule Astroboard.BoardsTest do
     end
   end
 
+  describe "card labels" do
+    setup %{scope: scope} do
+      {:ok, board} = Boards.create_board(scope, %{title: "B"})
+      {:ok, list} = Boards.create_list(scope, board, %{title: "L"})
+      {:ok, card} = Boards.create_card(scope, list, %{title: "C"})
+      %{card: card}
+    end
+
+    test "toggle_label/3 adds then removes a label", %{scope: scope, card: card} do
+      color = hd(Boards.label_colors())
+
+      assert {:ok, _} = Boards.toggle_label(scope, card.id, color)
+      assert color in Enum.map(labels_of(scope, card.id), & &1.color)
+
+      assert {:ok, _} = Boards.toggle_label(scope, card.id, color)
+      refute color in Enum.map(labels_of(scope, card.id), & &1.color)
+    end
+
+    test "toggle_label/3 rejects an unknown color", %{scope: scope, card: card} do
+      assert {:error, :invalid_color} = Boards.toggle_label(scope, card.id, "chartreuse")
+    end
+
+    test "a non-member cannot toggle a label", %{card: card} do
+      stranger = user_scope_fixture()
+      color = hd(Boards.label_colors())
+
+      assert_raise Ecto.NoResultsError, fn -> Boards.toggle_label(stranger, card.id, color) end
+    end
+
+    defp labels_of(scope, card_id) do
+      Boards.get_card!(scope, card_id)
+      |> Astroboard.Repo.preload(:card_labels)
+      |> Map.get(:card_labels)
+    end
+  end
+
   describe "checklist items" do
     setup %{scope: scope} do
       {:ok, board} = Boards.create_board(scope, %{title: "B"})

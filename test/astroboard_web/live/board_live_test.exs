@@ -171,6 +171,23 @@ defmodule AstroboardWeb.BoardLiveTest do
       assert has_element?(view, "#cards-#{backlog.id}", "Aug 01")
     end
 
+    test "toggles a label shown on the card face", %{
+      conn: conn,
+      board: board,
+      backlog: backlog,
+      card: card
+    } do
+      color = hd(Astroboard.Boards.label_colors())
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/cards/#{card.id}")
+
+      view |> element(~s(#card-modal button[phx-value-color="#{color}"])) |> render_click()
+
+      assert has_element?(
+               view,
+               ~s(#cards-#{backlog.id} [data-card-id="#{card.id}"] .rounded-full)
+             )
+    end
+
     test "adds a checklist item and shows progress", %{conn: conn, board: board, card: card} do
       {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/cards/#{card.id}")
 

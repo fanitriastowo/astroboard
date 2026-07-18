@@ -7,7 +7,9 @@ defmodule Astroboard.Boards do
   alias Astroboard.Repo
   alias Astroboard.Accounts
   alias Astroboard.Accounts.Scope
-  alias Astroboard.Boards.{Board, BoardMember, Card, ChecklistItem, List}
+  alias Astroboard.Boards.{Board, BoardMember, Card, CardLabel, ChecklistItem, List}
+
+  @label_colors ~w(violet cyan magenta amber green coral)
 
   @doc "Lists the boards the scope's user can access (owned or a member of)."
   def list_boards(%Scope{} = scope) do
@@ -29,7 +31,7 @@ defmodule Astroboard.Boards do
   def get_board!(%Scope{} = scope, id) do
     from(b in Board, as: :board, where: b.id == ^id, where: ^board_access(scope))
     |> Repo.one!()
-    |> Repo.preload(lists: [cards: :checklist_items])
+    |> Repo.preload(lists: [cards: [:checklist_items, :card_labels]])
   end
 
   @doc "Creates a board owned by the scope's user."
@@ -105,7 +107,7 @@ defmodule Astroboard.Boards do
     list = get_list!(scope, list_id)
 
     Repo.all(from c in Card, where: c.list_id == ^list.id, order_by: c.position)
-    |> Repo.preload(:checklist_items)
+    |> Repo.preload([:checklist_items, :card_labels])
   end
 
   @doc """
@@ -142,7 +144,7 @@ defmodule Astroboard.Boards do
         where: c.id == ^card_id and l.board_id == ^board_id,
         where: ^board_access(scope)
     )
-    |> Repo.preload(:checklist_items)
+    |> Repo.preload([:checklist_items, :card_labels])
   end
 
   @doc "Updates a card's editable fields (title, description). Broadcasts on success."
@@ -163,6 +165,29 @@ defmodule Astroboard.Boards do
     card
     |> Repo.delete()
     |> broadcast_cards(board_id, [card.list_id])
+  end
+
+  ## Labels
+
+  @doc "The fixed label color palette."
+  def label_colors, do: @label_colors
+
+  @doc "Toggles a label color on a card the scope user can access."
+  def toggle_label(%Scope{} = scope, card_id, color) do
+    card = get_card!(scope, card_id)
+
+    if color in @label_colors do
+      case Repo.get_by(CardLabel, card_id: card.id, color: color) do
+        nil ->
+          %CardLabel{card_id: card.id, color: color} |> CardLabel.changeset(%{}) |> Repo.insert()
+
+        label ->
+          Repo.delete(label)
+      end
+      |> broadcast_cards(board_id_for_card(card), [card.list_id])
+    else
+      {:error, :invalid_color}
+    end
   end
 
   ## Checklist items

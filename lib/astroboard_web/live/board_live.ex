@@ -157,6 +157,15 @@ defmodule AstroboardWeb.BoardLive do
     {:noreply, socket}
   end
 
+  def handle_event("toggle_label", _params, %{assigns: %{selected_card: nil}} = socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("toggle_label", %{"color" => color}, socket) do
+    Boards.toggle_label(socket.assigns.current_scope, socket.assigns.selected_card.id, color)
+    {:noreply, reload_selected_card(socket)}
+  end
+
   def handle_event("add_checklist_item", %{"content" => content}, socket) do
     case Boards.add_checklist_item(
            socket.assigns.current_scope,
@@ -252,6 +261,17 @@ defmodule AstroboardWeb.BoardLive do
   defp owner?(socket) do
     socket.assigns.board.user_id == socket.assigns.current_scope.user.id
   end
+
+  defp card_labels(%{card_labels: labels}) when is_list(labels), do: labels
+  defp card_labels(_card), do: []
+
+  defp label_bg("violet"), do: "bg-violet-500"
+  defp label_bg("cyan"), do: "bg-cyan-400"
+  defp label_bg("magenta"), do: "bg-pink-500"
+  defp label_bg("amber"), do: "bg-amber-400"
+  defp label_bg("green"), do: "bg-emerald-400"
+  defp label_bg("coral"), do: "bg-rose-400"
+  defp label_bg(_color), do: "bg-base-300"
 
   defp checklist_total(%{checklist_items: items}) when is_list(items), do: length(items)
   defp checklist_total(_card), do: 0
@@ -399,6 +419,12 @@ defmodule AstroboardWeb.BoardLive do
                 data-card-id={card.id}
                 class="card-cosmic block rounded-xl px-3 py-2.5 text-sm cursor-grab active:cursor-grabbing"
               >
+                <span :if={card_labels(card) != []} class="mb-1.5 flex gap-1">
+                  <span
+                    :for={label <- card_labels(card)}
+                    class={["h-1.5 w-6 rounded-full", label_bg(label.color)]}
+                  ></span>
+                </span>
                 {card.title}
                 <span class="mt-1 flex items-center gap-3 font-mono text-xs text-base-content/50">
                   <span
@@ -455,6 +481,7 @@ defmodule AstroboardWeb.BoardLive do
         card={@selected_card}
         card_form={@card_form}
         board_id={@board.id}
+        colors={Boards.label_colors()}
       />
       <.members_modal
         :if={@live_action == :members}
