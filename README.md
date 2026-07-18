@@ -1,5 +1,24 @@
 # Astroboard
 
+> ⚠️ **Experimental — not production ready.** APIs, schema, and features may change without notice.
+
+Astroboard is a Trello-inspired task board for internal teams. It helps you
+organize work into boards and cards, track **priority**, set **due dates**, and
+move tasks across columns — the core Trello-style workflow, self-hosted.
+
+Built with Phoenix 1.8 (LiveView) on SQLite.
+
+## Features
+
+- Kanban-style boards with draggable cards
+- Task priority levels
+- Due dates
+- Team-oriented task management (internal use)
+
+> Feature set is in active development; not all items above may be complete yet.
+
+## Getting started
+
 To start your Phoenix server:
 
 * Run `mix setup` to install and setup dependencies
