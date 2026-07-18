@@ -130,6 +130,35 @@ defmodule AstroboardWeb.BoardLiveTest do
     end
   end
 
+  describe "Real-time move" do
+    setup [:register_and_log_in_user]
+
+    setup %{scope: scope} do
+      {:ok, board} = Boards.create_board(scope, %{title: "Move Board"})
+      {:ok, list_a} = Boards.create_list(board, %{title: "A"})
+      {:ok, list_b} = Boards.create_list(board, %{title: "B"})
+      {:ok, card} = Boards.create_card(list_a, %{title: "movable"})
+      %{board: board, list_a: list_a, list_b: list_b, card: card}
+    end
+
+    test "moving a card across lists updates both columns", %{
+      conn: conn,
+      board: board,
+      list_a: list_a,
+      list_b: list_b,
+      card: card
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}")
+
+      view
+      |> element("#cards-#{list_b.id}")
+      |> render_hook("move_card", %{"card_id" => card.id, "list_id" => list_b.id, "position" => 0})
+
+      assert has_element?(view, "#cards-#{list_b.id}", "movable")
+      refute has_element?(view, "#cards-#{list_a.id}", "movable")
+    end
+  end
+
   describe "authentication" do
     test "redirects to log in when unauthenticated", %{conn: conn} do
       assert {:error, {:redirect, %{to: path}}} = live(conn, ~p"/boards")

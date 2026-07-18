@@ -78,6 +78,88 @@ defmodule Astroboard.Boards do
     Repo.delete(card)
   end
 
+  @doc """
+  Moves a card to `target_list_id` at `target_position`, reindexing the source
+  and target lists so positions stay contiguous. Both the card and the target
+  list must belong to the scope's user. Broadcasts `{:card_moved, card_id}` to
+  the board's subscribers on success.
+  """
+  def move_card(%Scope{} = scope, card_id, target_list_id, target_position) do
+    card = get_card!(scope, card_id)
+    target_list = get_list!(scope, target_list_id)
+    source_list_id = card.list_id
+    target_position = max(target_position, 0)
+
+    result =
+      Repo.transaction(fn ->
+        card = card |> Ecto.Changeset.change(list_id: target_list.id) |> Repo.update!()
+
+        others =
+          Repo.all(
+            from c in Card,
+              where: c.list_id == ^target_list.id and c.id != ^card.id,
+              order_by: c.position,
+              select: c.id
+          )
+
+        others
+        |> Elixir.List.insert_at(min(target_position, length(others)), card.id)
+        |> reindex()
+
+        if source_list_id != target_list.id do
+          Repo.all(
+            from c in Card,
+              where: c.list_id == ^source_list_id,
+              order_by: c.position,
+              select: c.id
+          )
+          |> reindex()
+        end
+
+        Repo.get!(Card, card.id)
+      end)
+
+    case result do
+      {:ok, moved} ->
+        broadcast(target_list.board_id, {:card_moved, moved.id})
+        {:ok, moved}
+
+      other ->
+        other
+    end
+  end
+
+  defp reindex(ids) do
+    ids
+    |> Enum.with_index()
+    |> Enum.each(fn {id, index} ->
+      Repo.update_all(from(c in Card, where: c.id == ^id), set: [position: index])
+    end)
+  end
+
+  @doc "Returns one of the scope user's lists. Raises if not found/owned."
+  def get_list!(%Scope{} = scope, id) do
+    Repo.one!(
+      from l in List,
+        join: b in Board,
+        on: b.id == l.board_id,
+        where: l.id == ^id and b.user_id == ^scope.user.id
+    )
+  end
+
+  ## PubSub
+
+  @doc "Subscribes the caller to real-time updates for the given board."
+  def subscribe(board_id) do
+    Phoenix.PubSub.subscribe(Astroboard.PubSub, topic(board_id))
+  end
+
+  defp broadcast(board_id, message) do
+    Phoenix.PubSub.broadcast(Astroboard.PubSub, topic(board_id), message)
+  end
+
+  defp topic(board_id), do: "board:#{board_id}"
+
   @doc "Returns a changeset for tracking card changes (e.g. forms)."
   def change_card(%Card{} = card, attrs \\ %{}) do
     Card.changeset(card, attrs)

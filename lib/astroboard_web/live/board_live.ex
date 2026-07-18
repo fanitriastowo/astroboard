@@ -7,6 +7,8 @@ defmodule AstroboardWeb.BoardLive do
   def mount(%{"id" => id}, _session, socket) do
     board = Boards.get_board!(socket.assigns.current_scope, id)
 
+    if connected?(socket), do: Boards.subscribe(board.id)
+
     socket =
       socket
       |> assign(:page_title, board.title)
@@ -88,6 +90,44 @@ defmodule AstroboardWeb.BoardLive do
      |> push_patch(to: ~p"/boards/#{socket.assigns.board.id}")}
   end
 
+  def handle_event(
+        "move_card",
+        %{"card_id" => card_id, "list_id" => list_id, "position" => pos},
+        socket
+      ) do
+    case Boards.move_card(
+           socket.assigns.current_scope,
+           to_int(card_id),
+           to_int(list_id),
+           to_int(pos)
+         ) do
+      {:ok, _card} -> {:noreply, reload_board(socket)}
+      _ -> {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_info({:card_moved, _card_id}, socket) do
+    {:noreply, reload_board(socket)}
+  end
+
+  # Re-fetch the board and reset every list's card stream to the canonical order.
+  defp reload_board(socket) do
+    board = Boards.get_board!(socket.assigns.current_scope, socket.assigns.board.id)
+
+    socket
+    |> assign(:board, board)
+    |> assign(:lists, board.lists)
+    |> then(fn s ->
+      Enum.reduce(board.lists, s, fn list, acc ->
+        stream(acc, stream_name(list.id), list.cards, reset: true)
+      end)
+    end)
+  end
+
+  defp to_int(value) when is_integer(value), do: value
+  defp to_int(value) when is_binary(value), do: String.to_integer(value)
+
   defp stream_name(list_id), do: :"cards_#{list_id}"
 
   @impl true
@@ -116,12 +156,20 @@ defmodule AstroboardWeb.BoardLive do
               <h2 class="text-sm font-semibold">{list.title}</h2>
             </div>
 
-            <div id={"cards-#{list.id}"} phx-update="stream" class="space-y-2">
+            <div
+              id={"cards-#{list.id}"}
+              phx-hook="Drag"
+              phx-update="stream"
+              data-list-id={list.id}
+              class="space-y-2 min-h-8"
+            >
               <.link
                 :for={{dom_id, card} <- @streams[stream_name(list.id)]}
                 id={dom_id}
                 patch={~p"/boards/#{@board.id}/cards/#{card.id}"}
-                class="card-cosmic block rounded-xl px-3 py-2.5 text-sm cursor-pointer"
+                draggable="true"
+                data-card-id={card.id}
+                class="card-cosmic block rounded-xl px-3 py-2.5 text-sm cursor-grab active:cursor-grabbing"
               >
                 {card.title}
               </.link>

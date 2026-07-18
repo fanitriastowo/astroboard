@@ -85,6 +85,58 @@ defmodule Astroboard.BoardsTest do
     end
   end
 
+  describe "move_card/4" do
+    setup %{scope: scope} do
+      {:ok, board} = Boards.create_board(scope, %{title: "Board"})
+      {:ok, list_a} = Boards.create_list(board, %{title: "A"})
+      {:ok, list_b} = Boards.create_list(board, %{title: "B"})
+      {:ok, a1} = Boards.create_card(list_a, %{title: "a1"})
+      {:ok, a2} = Boards.create_card(list_a, %{title: "a2"})
+      {:ok, a3} = Boards.create_card(list_a, %{title: "a3"})
+      {:ok, b1} = Boards.create_card(list_b, %{title: "b1"})
+
+      %{board: board, list_a: list_a, list_b: list_b, a1: a1, a2: a2, a3: a3, b1: b1}
+    end
+
+    test "reorders a card within its list", %{scope: scope, list_a: list_a, a1: a1} do
+      assert {:ok, _} = Boards.move_card(scope, a1.id, list_a.id, 2)
+
+      board = Boards.get_board!(scope, list_a.board_id)
+      cards = Enum.find(board.lists, &(&1.id == list_a.id)).cards
+      assert Enum.map(cards, & &1.title) == ["a2", "a3", "a1"]
+      assert Enum.map(cards, & &1.position) == [0, 1, 2]
+    end
+
+    test "moves a card to another list at a position", %{
+      scope: scope,
+      list_a: list_a,
+      list_b: list_b,
+      a1: a1
+    } do
+      assert {:ok, _} = Boards.move_card(scope, a1.id, list_b.id, 0)
+
+      board = Boards.get_board!(scope, list_a.board_id)
+      a_cards = Enum.find(board.lists, &(&1.id == list_a.id)).cards
+      b_cards = Enum.find(board.lists, &(&1.id == list_b.id)).cards
+
+      assert Enum.map(a_cards, & &1.title) == ["a2", "a3"]
+      assert Enum.map(a_cards, & &1.position) == [0, 1]
+      assert Enum.map(b_cards, & &1.title) == ["a1", "b1"]
+      assert Enum.map(b_cards, & &1.position) == [0, 1]
+    end
+
+    test "broadcasts to board subscribers", %{scope: scope, board: board, list_b: list_b, a1: a1} do
+      Boards.subscribe(board.id)
+      assert {:ok, _} = Boards.move_card(scope, a1.id, list_b.id, 0)
+      assert_receive {:card_moved, _}
+    end
+
+    test "raises for another user's card", %{list_a: list_a, a1: a1} do
+      other = user_scope_fixture()
+      assert_raise Ecto.NoResultsError, fn -> Boards.move_card(other, a1.id, list_a.id, 0) end
+    end
+  end
+
   describe "get_board!/2" do
     test "preloads lists and cards ordered by position", %{scope: scope} do
       {:ok, board} = Boards.create_board(scope, %{title: "Board"})
