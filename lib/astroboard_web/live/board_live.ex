@@ -41,7 +41,7 @@ defmodule AstroboardWeb.BoardLive do
     index = list_index(socket.assigns.lists, list_id)
     list = index && Enum.at(socket.assigns.lists, index)
 
-    case list && Boards.create_card(list, %{title: title}) do
+    case list && Boards.create_card(socket.assigns.current_scope, list, %{title: title}) do
       {:ok, card} ->
         {:noreply, stream_insert(socket, stream_name(index), card)}
 
@@ -51,7 +51,7 @@ defmodule AstroboardWeb.BoardLive do
   end
 
   def handle_event("add_list", %{"title" => title}, socket) do
-    case Boards.create_list(socket.assigns.board, %{title: title}) do
+    case Boards.create_list(socket.assigns.current_scope, socket.assigns.board, %{title: title}) do
       {:ok, list} ->
         index = length(socket.assigns.lists)
 
@@ -76,7 +76,7 @@ defmodule AstroboardWeb.BoardLive do
   def handle_event("rename_list", %{"list_id" => list_id, "title" => title}, socket) do
     list = Enum.find(socket.assigns.lists, &(&1.id == to_int(list_id)))
 
-    case list && Boards.update_list(list, %{title: title}) do
+    case list && Boards.update_list(socket.assigns.current_scope, list, %{title: title}) do
       {:ok, _updated} ->
         {:noreply, socket |> assign(:editing_list_id, nil) |> reload_board()}
 
@@ -87,7 +87,7 @@ defmodule AstroboardWeb.BoardLive do
 
   def handle_event("delete_list", %{"list_id" => list_id}, socket) do
     list = Enum.find(socket.assigns.lists, &(&1.id == to_int(list_id)))
-    if list, do: Boards.delete_list(list)
+    if list, do: Boards.delete_list(socket.assigns.current_scope, list)
 
     {:noreply, reload_board(socket)}
   end
@@ -103,7 +103,7 @@ defmodule AstroboardWeb.BoardLive do
   def handle_event("save_card", %{"card" => params}, socket) do
     card = socket.assigns.selected_card
 
-    case Boards.update_card(card, params) do
+    case Boards.update_card(socket.assigns.current_scope, card, params) do
       {:ok, updated} ->
         index = list_index(socket.assigns.lists, updated.list_id)
 
@@ -119,7 +119,7 @@ defmodule AstroboardWeb.BoardLive do
 
   def handle_event("delete_card", _params, socket) do
     card = socket.assigns.selected_card
-    {:ok, _} = Boards.delete_card(card)
+    {:ok, _} = Boards.delete_card(socket.assigns.current_scope, card)
     index = list_index(socket.assigns.lists, card.list_id)
 
     {:noreply,

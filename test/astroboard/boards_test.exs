@@ -37,13 +37,13 @@ defmodule Astroboard.BoardsTest do
     test "append with incrementing positions", %{scope: scope} do
       {:ok, board} = Boards.create_board(scope, %{title: "Board"})
 
-      {:ok, backlog} = Boards.create_list(board, %{title: "Backlog"})
-      {:ok, doing} = Boards.create_list(board, %{title: "Doing"})
+      {:ok, backlog} = Boards.create_list(scope, board, %{title: "Backlog"})
+      {:ok, doing} = Boards.create_list(scope, board, %{title: "Doing"})
       assert backlog.position == 0
       assert doing.position == 1
 
-      {:ok, first} = Boards.create_card(backlog, %{title: "First"})
-      {:ok, second} = Boards.create_card(backlog, %{title: "Second"})
+      {:ok, first} = Boards.create_card(scope, backlog, %{title: "First"})
+      {:ok, second} = Boards.create_card(scope, backlog, %{title: "Second"})
       assert first.position == 0
       assert second.position == 1
       assert first.list_id == backlog.id
@@ -52,15 +52,15 @@ defmodule Astroboard.BoardsTest do
     test "create_list/2 broadcasts to board subscribers", %{scope: scope} do
       {:ok, board} = Boards.create_board(scope, %{title: "Board"})
       Boards.subscribe(board.id)
-      assert {:ok, _} = Boards.create_list(board, %{title: "Backlog"})
+      assert {:ok, _} = Boards.create_list(scope, board, %{title: "Backlog"})
       assert_receive {:board_updated, _from}
     end
 
     test "create_card/2 broadcasts to board subscribers", %{scope: scope} do
       {:ok, board} = Boards.create_board(scope, %{title: "Board"})
-      {:ok, list} = Boards.create_list(board, %{title: "Backlog"})
+      {:ok, list} = Boards.create_list(scope, board, %{title: "Backlog"})
       Boards.subscribe(board.id)
-      assert {:ok, _} = Boards.create_card(list, %{title: "A card"})
+      assert {:ok, _} = Boards.create_card(scope, list, %{title: "A card"})
       assert_receive {:board_updated, _from}
     end
   end
@@ -68,8 +68,8 @@ defmodule Astroboard.BoardsTest do
   describe "get_card!/2, update_card/2, delete_card/1" do
     setup %{scope: scope} do
       {:ok, board} = Boards.create_board(scope, %{title: "Board"})
-      {:ok, list} = Boards.create_list(board, %{title: "Backlog"})
-      {:ok, card} = Boards.create_card(list, %{title: "A card"})
+      {:ok, list} = Boards.create_list(scope, board, %{title: "Backlog"})
+      {:ok, card} = Boards.create_card(scope, list, %{title: "A card"})
       %{board: board, list: list, card: card}
     end
 
@@ -101,31 +101,35 @@ defmodule Astroboard.BoardsTest do
       end
     end
 
-    test "update_card/2 changes title and description", %{card: card} do
+    test "update_card/2 changes title and description", %{scope: scope, card: card} do
       assert {:ok, updated} =
-               Boards.update_card(card, %{title: "Renamed", description: "Details"})
+               Boards.update_card(scope, card, %{title: "Renamed", description: "Details"})
 
       assert updated.title == "Renamed"
       assert updated.description == "Details"
     end
 
-    test "update_card/2 rejects a blank title", %{card: card} do
-      assert {:error, %Ecto.Changeset{}} = Boards.update_card(card, %{title: ""})
+    test "update_card/2 rejects a blank title", %{scope: scope, card: card} do
+      assert {:error, %Ecto.Changeset{}} = Boards.update_card(scope, card, %{title: ""})
     end
 
-    test "update_card/2 does not let a user assign position", %{card: card} do
-      assert {:ok, updated} = Boards.update_card(card, %{title: "x", position: 99})
+    test "update_card/2 does not let a user assign position", %{scope: scope, card: card} do
+      assert {:ok, updated} = Boards.update_card(scope, card, %{title: "x", position: 99})
       assert updated.position == card.position
     end
 
     test "delete_card/1 removes the card", %{scope: scope, card: card} do
-      assert {:ok, _} = Boards.delete_card(card)
+      assert {:ok, _} = Boards.delete_card(scope, card)
       assert_raise Ecto.NoResultsError, fn -> Boards.get_card!(scope, card.id) end
     end
 
-    test "delete_card/1 broadcasts to board subscribers", %{board: board, card: card} do
+    test "delete_card/1 broadcasts to board subscribers", %{
+      scope: scope,
+      board: board,
+      card: card
+    } do
       Boards.subscribe(board.id)
-      assert {:ok, _} = Boards.delete_card(card)
+      assert {:ok, _} = Boards.delete_card(scope, card)
       assert_receive {:board_updated, _from}
     end
   end
@@ -133,29 +137,37 @@ defmodule Astroboard.BoardsTest do
   describe "update_list/2 and delete_list/1" do
     setup %{scope: scope} do
       {:ok, board} = Boards.create_board(scope, %{title: "Board"})
-      {:ok, list} = Boards.create_list(board, %{title: "Backlog"})
-      {:ok, card} = Boards.create_card(list, %{title: "A card"})
+      {:ok, list} = Boards.create_list(scope, board, %{title: "Backlog"})
+      {:ok, card} = Boards.create_card(scope, list, %{title: "A card"})
       %{board: board, list: list, card: card}
     end
 
-    test "update_list/2 renames the list", %{list: list} do
-      assert {:ok, updated} = Boards.update_list(list, %{title: "In Progress"})
+    test "update_list/2 renames the list", %{scope: scope, list: list} do
+      assert {:ok, updated} = Boards.update_list(scope, list, %{title: "In Progress"})
       assert updated.title == "In Progress"
     end
 
-    test "update_list/2 rejects a blank title", %{list: list} do
-      assert {:error, %Ecto.Changeset{}} = Boards.update_list(list, %{title: ""})
+    test "update_list/2 rejects a blank title", %{scope: scope, list: list} do
+      assert {:error, %Ecto.Changeset{}} = Boards.update_list(scope, list, %{title: ""})
     end
 
-    test "update_list/2 broadcasts to board subscribers", %{board: board, list: list} do
+    test "update_list/2 broadcasts to board subscribers", %{
+      scope: scope,
+      board: board,
+      list: list
+    } do
       Boards.subscribe(board.id)
-      assert {:ok, _} = Boards.update_list(list, %{title: "Renamed"})
+      assert {:ok, _} = Boards.update_list(scope, list, %{title: "Renamed"})
       assert_receive {:board_updated, _from}
     end
 
-    test "delete_list/1 broadcasts to board subscribers", %{board: board, list: list} do
+    test "delete_list/1 broadcasts to board subscribers", %{
+      scope: scope,
+      board: board,
+      list: list
+    } do
       Boards.subscribe(board.id)
-      assert {:ok, _} = Boards.delete_list(list)
+      assert {:ok, _} = Boards.delete_list(scope, list)
       assert_receive {:board_updated, _from}
     end
 
@@ -165,7 +177,7 @@ defmodule Astroboard.BoardsTest do
       list: list,
       card: card
     } do
-      assert {:ok, _} = Boards.delete_list(list)
+      assert {:ok, _} = Boards.delete_list(scope, list)
 
       loaded = Boards.get_board!(scope, board.id)
       assert loaded.lists == []
@@ -176,12 +188,12 @@ defmodule Astroboard.BoardsTest do
   describe "move_card/4" do
     setup %{scope: scope} do
       {:ok, board} = Boards.create_board(scope, %{title: "Board"})
-      {:ok, list_a} = Boards.create_list(board, %{title: "A"})
-      {:ok, list_b} = Boards.create_list(board, %{title: "B"})
-      {:ok, a1} = Boards.create_card(list_a, %{title: "a1"})
-      {:ok, a2} = Boards.create_card(list_a, %{title: "a2"})
-      {:ok, a3} = Boards.create_card(list_a, %{title: "a3"})
-      {:ok, b1} = Boards.create_card(list_b, %{title: "b1"})
+      {:ok, list_a} = Boards.create_list(scope, board, %{title: "A"})
+      {:ok, list_b} = Boards.create_list(scope, board, %{title: "B"})
+      {:ok, a1} = Boards.create_card(scope, list_a, %{title: "a1"})
+      {:ok, a2} = Boards.create_card(scope, list_a, %{title: "a2"})
+      {:ok, a3} = Boards.create_card(scope, list_a, %{title: "a3"})
+      {:ok, b1} = Boards.create_card(scope, list_b, %{title: "b1"})
 
       %{board: board, list_a: list_a, list_b: list_b, a1: a1, a2: a2, a3: a3, b1: b1}
     end
@@ -228,10 +240,10 @@ defmodule Astroboard.BoardsTest do
   describe "get_board!/2" do
     test "preloads lists and cards ordered by position", %{scope: scope} do
       {:ok, board} = Boards.create_board(scope, %{title: "Board"})
-      {:ok, backlog} = Boards.create_list(board, %{title: "Backlog"})
-      {:ok, _doing} = Boards.create_list(board, %{title: "Doing"})
-      {:ok, _c1} = Boards.create_card(backlog, %{title: "Card A"})
-      {:ok, _c2} = Boards.create_card(backlog, %{title: "Card B"})
+      {:ok, backlog} = Boards.create_list(scope, board, %{title: "Backlog"})
+      {:ok, _doing} = Boards.create_list(scope, board, %{title: "Doing"})
+      {:ok, _c1} = Boards.create_card(scope, backlog, %{title: "Card A"})
+      {:ok, _c2} = Boards.create_card(scope, backlog, %{title: "Card B"})
 
       loaded = Boards.get_board!(scope, board.id)
 

@@ -34,15 +34,19 @@ defmodule Astroboard.Boards do
   end
 
   @doc "Creates a list appended to the end of the given board. Broadcasts on success."
-  def create_list(%Board{} = board, attrs) do
-    %List{board_id: board.id, position: next_position(List, :board_id, board.id)}
+  def create_list(%Scope{} = scope, %Board{} = board, attrs) do
+    board_id = authorize_board!(scope, board.id)
+
+    %List{board_id: board_id, position: next_position(List, :board_id, board_id)}
     |> List.changeset(attrs)
     |> Repo.insert()
-    |> notify(board.id)
+    |> notify(board_id)
   end
 
   @doc "Renames/updates a list. Broadcasts to board subscribers on success."
-  def update_list(%List{} = list, attrs) do
+  def update_list(%Scope{} = scope, %List{} = list, attrs) do
+    list = get_list!(scope, list.id)
+
     list
     |> List.changeset(attrs)
     |> Repo.update()
@@ -50,14 +54,18 @@ defmodule Astroboard.Boards do
   end
 
   @doc "Deletes a list and its cards. Broadcasts to board subscribers."
-  def delete_list(%List{} = list) do
+  def delete_list(%Scope{} = scope, %List{} = list) do
+    list = get_list!(scope, list.id)
+
     list
     |> Repo.delete()
     |> notify(list.board_id)
   end
 
   @doc "Creates a card appended to the end of the given list. Broadcasts on success."
-  def create_card(%List{} = list, attrs) do
+  def create_card(%Scope{} = scope, %List{} = list, attrs) do
+    list = get_list!(scope, list.id)
+
     %Card{list_id: list.id, position: next_position(Card, :list_id, list.id)}
     |> Card.changeset(attrs)
     |> Repo.insert()
@@ -97,7 +105,9 @@ defmodule Astroboard.Boards do
   end
 
   @doc "Updates a card's editable fields (title, description). Broadcasts on success."
-  def update_card(%Card{} = card, attrs) do
+  def update_card(%Scope{} = scope, %Card{} = card, attrs) do
+    card = get_card!(scope, card.id)
+
     card
     |> Card.changeset(attrs)
     |> Repo.update()
@@ -105,7 +115,8 @@ defmodule Astroboard.Boards do
   end
 
   @doc "Deletes a card. Broadcasts to board subscribers."
-  def delete_card(%Card{} = card) do
+  def delete_card(%Scope{} = scope, %Card{} = card) do
+    card = get_card!(scope, card.id)
     board_id = board_id_for_card(card)
 
     card
@@ -191,6 +202,14 @@ defmodule Astroboard.Boards do
   end
 
   defp notify(result, _board_id), do: result
+
+  defp authorize_board!(%Scope{} = scope, board_id) do
+    Repo.one!(
+      from b in Board,
+        where: b.id == ^board_id and b.user_id == ^scope.user.id,
+        select: b.id
+    )
+  end
 
   defp board_id_for_card(%Card{list_id: list_id}) do
     Repo.one(from l in List, where: l.id == ^list_id, select: l.board_id)

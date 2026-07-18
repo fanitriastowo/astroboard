@@ -7,9 +7,9 @@ defmodule AstroboardWeb.BoardLiveTest do
 
   defp create_board(%{scope: scope}) do
     {:ok, board} = Boards.create_board(scope, %{title: "Product Roadmap"})
-    {:ok, backlog} = Boards.create_list(board, %{title: "Backlog"})
-    {:ok, _doing} = Boards.create_list(board, %{title: "Doing"})
-    {:ok, card} = Boards.create_card(backlog, %{title: "Wire up migrations"})
+    {:ok, backlog} = Boards.create_list(scope, board, %{title: "Backlog"})
+    {:ok, _doing} = Boards.create_list(scope, board, %{title: "Doing"})
+    {:ok, card} = Boards.create_card(scope, backlog, %{title: "Wire up migrations"})
 
     %{board: board, backlog: backlog, card: card}
   end
@@ -146,8 +146,8 @@ defmodule AstroboardWeb.BoardLiveTest do
     test "cannot open another user's card", %{conn: conn, board: board} do
       other = Astroboard.AccountsFixtures.user_scope_fixture()
       {:ok, ob} = Boards.create_board(other, %{title: "Theirs"})
-      {:ok, ol} = Boards.create_list(ob, %{title: "L"})
-      {:ok, oc} = Boards.create_card(ol, %{title: "secret"})
+      {:ok, ol} = Boards.create_list(other, ob, %{title: "L"})
+      {:ok, oc} = Boards.create_card(other, ol, %{title: "secret"})
 
       assert_raise Ecto.NoResultsError, fn ->
         live(conn, ~p"/boards/#{board.id}/cards/#{oc.id}")
@@ -172,9 +172,9 @@ defmodule AstroboardWeb.BoardLiveTest do
 
     setup %{scope: scope} do
       {:ok, board} = Boards.create_board(scope, %{title: "Move Board"})
-      {:ok, list_a} = Boards.create_list(board, %{title: "A"})
-      {:ok, list_b} = Boards.create_list(board, %{title: "B"})
-      {:ok, card} = Boards.create_card(list_a, %{title: "movable"})
+      {:ok, list_a} = Boards.create_list(scope, board, %{title: "A"})
+      {:ok, list_b} = Boards.create_list(scope, board, %{title: "B"})
+      {:ok, card} = Boards.create_card(scope, list_a, %{title: "movable"})
       %{board: board, list_a: list_a, list_b: list_b, card: card}
     end
 

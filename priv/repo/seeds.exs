@@ -30,8 +30,10 @@ if Accounts.get_user_by_email(demo_email) == nil do
   ]
 
   for {list_title, card_titles} <- seed_lists do
-    {:ok, list} = Boards.create_list(board, %{title: list_title})
-    for card_title <- card_titles, do: {:ok, _} = Boards.create_card(list, %{title: card_title})
+    {:ok, list} = Boards.create_list(scope, board, %{title: list_title})
+
+    for card_title <- card_titles,
+        do: {:ok, _} = Boards.create_card(scope, list, %{title: card_title})
   end
 
   IO.puts("""
