@@ -130,11 +130,17 @@ defmodule Astroboard.Boards do
     |> broadcast_cards(board_id, [card.list_id])
   end
 
+  # Temporary positions used during reindexing so intermediate states never
+  # collide under the unique (list_id, position) constraint. Assumes far fewer
+  # than @reindex_offset cards per list.
+  @reindex_offset 1_000_000
+  @park_position 2_000_000
+
   @doc """
   Moves a card to `target_list_id` at `target_position`, reindexing the source
-  and target lists so positions stay contiguous. Both the card and the target
-  list must belong to the scope's user. Broadcasts `{:board_updated, pid}` to
-  the board's subscribers on success.
+  and target lists so positions stay contiguous and unique. Both the card and
+  the target list must belong to the scope's user. Broadcasts to the board's
+  subscribers on success.
   """
   def move_card(%Scope{} = scope, card_id, target_list_id, target_position) do
     card = get_card!(scope, card_id)
@@ -144,7 +150,12 @@ defmodule Astroboard.Boards do
 
     result =
       Repo.transaction(fn ->
-        card = card |> Ecto.Changeset.change(list_id: target_list.id) |> Repo.update!()
+        # Park the card in the target list at a position above any real value so
+        # neither the list-move nor the reindex transiently violates uniqueness.
+        card =
+          card
+          |> Ecto.Changeset.change(list_id: target_list.id, position: @park_position)
+          |> Repo.update!()
 
         others =
           Repo.all(
@@ -154,18 +165,19 @@ defmodule Astroboard.Boards do
               select: c.id
           )
 
-        others
-        |> Elixir.List.insert_at(min(target_position, length(others)), card.id)
-        |> reindex()
+        target_ids = Elixir.List.insert_at(others, min(target_position, length(others)), card.id)
+        reindex_list(target_list.id, target_ids)
 
         if source_list_id != target_list.id do
-          Repo.all(
-            from c in Card,
-              where: c.list_id == ^source_list_id,
-              order_by: c.position,
-              select: c.id
-          )
-          |> reindex()
+          source_ids =
+            Repo.all(
+              from c in Card,
+                where: c.list_id == ^source_list_id,
+                order_by: c.position,
+                select: c.id
+            )
+
+          reindex_list(source_list_id, source_ids)
         end
 
         Repo.get!(Card, card.id)
@@ -174,8 +186,15 @@ defmodule Astroboard.Boards do
     broadcast_cards(result, target_list.board_id, Enum.uniq([source_list_id, target_list.id]))
   end
 
-  defp reindex(ids) do
-    ids
+  # Assign contiguous positions 0..n-1 to `ordered_ids` (all cards of the list)
+  # without transient unique-constraint violations: first shift every card in
+  # the list out of the target range, then set each final position.
+  defp reindex_list(list_id, ordered_ids) do
+    Repo.update_all(from(c in Card, where: c.list_id == ^list_id),
+      inc: [position: @reindex_offset]
+    )
+
+    ordered_ids
     |> Enum.with_index()
     |> Enum.each(fn {id, index} ->
       Repo.update_all(from(c in Card, where: c.id == ^id), set: [position: index])
@@ -252,8 +271,14 @@ defmodule Astroboard.Boards do
     List.changeset(list, attrs)
   end
 
-  # Next position is the count of existing siblings (0-based, appended to the end).
+  # Append past the current max sibling position (never reuses a position freed
+  # by a delete, so the unique (parent, position) constraint always holds).
   defp next_position(schema, foreign_key, parent_id) do
-    Repo.one(from r in schema, where: field(r, ^foreign_key) == ^parent_id, select: count(r.id))
+    max =
+      Repo.one(
+        from r in schema, where: field(r, ^foreign_key) == ^parent_id, select: max(r.position)
+      )
+
+    (max || -1) + 1
   end
 end

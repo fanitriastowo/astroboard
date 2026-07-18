@@ -18,5 +18,6 @@ defmodule Astroboard.Boards.Card do
     |> cast(attrs, [:title, :description])
     |> validate_required([:title])
     |> validate_length(:title, max: 240)
+    |> unique_constraint(:position, name: :cards_list_id_position_index)
   end
 end

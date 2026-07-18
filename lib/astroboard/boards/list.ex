@@ -18,5 +18,6 @@ defmodule Astroboard.Boards.List do
     |> cast(attrs, [:title])
     |> validate_required([:title])
     |> validate_length(:title, max: 120)
+    |> unique_constraint(:position, name: :lists_board_id_position_index)
   end
 end

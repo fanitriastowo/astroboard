@@ -123,6 +123,17 @@ defmodule Astroboard.BoardsTest do
       assert_raise Ecto.NoResultsError, fn -> Boards.get_card!(scope, card.id) end
     end
 
+    test "create_card after a delete appends past the max, never reusing a position",
+         %{scope: scope, list: list, card: card} do
+      {:ok, second} = Boards.create_card(scope, list, %{title: "second"})
+      assert second.position == 1
+
+      assert {:ok, _} = Boards.delete_card(scope, card)
+
+      {:ok, third} = Boards.create_card(scope, list, %{title: "third"})
+      assert third.position == 2
+    end
+
     test "delete_card/1 broadcasts to board subscribers", %{
       scope: scope,
       board: board,
