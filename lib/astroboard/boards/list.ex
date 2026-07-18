@@ -15,8 +15,8 @@ defmodule Astroboard.Boards.List do
   @doc false
   def changeset(list, attrs) do
     list
-    |> cast(attrs, [:title, :position])
-    |> validate_required([:title, :position])
+    |> cast(attrs, [:title])
+    |> validate_required([:title])
     |> validate_length(:title, max: 120)
   end
 end

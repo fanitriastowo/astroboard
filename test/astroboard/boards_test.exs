@@ -48,6 +48,21 @@ defmodule Astroboard.BoardsTest do
       assert second.position == 1
       assert first.list_id == backlog.id
     end
+
+    test "create_list/2 broadcasts to board subscribers", %{scope: scope} do
+      {:ok, board} = Boards.create_board(scope, %{title: "Board"})
+      Boards.subscribe(board.id)
+      assert {:ok, _} = Boards.create_list(board, %{title: "Backlog"})
+      assert_receive {:board_updated, _from}
+    end
+
+    test "create_card/2 broadcasts to board subscribers", %{scope: scope} do
+      {:ok, board} = Boards.create_board(scope, %{title: "Board"})
+      {:ok, list} = Boards.create_list(board, %{title: "Backlog"})
+      Boards.subscribe(board.id)
+      assert {:ok, _} = Boards.create_card(list, %{title: "A card"})
+      assert_receive {:board_updated, _from}
+    end
   end
 
   describe "get_card!/2, update_card/2, delete_card/1" do
@@ -55,7 +70,7 @@ defmodule Astroboard.BoardsTest do
       {:ok, board} = Boards.create_board(scope, %{title: "Board"})
       {:ok, list} = Boards.create_list(board, %{title: "Backlog"})
       {:ok, card} = Boards.create_card(list, %{title: "A card"})
-      %{card: card}
+      %{board: board, list: list, card: card}
     end
 
     test "get_card!/2 returns the scope user's card", %{scope: scope, card: card} do
@@ -79,9 +94,20 @@ defmodule Astroboard.BoardsTest do
       assert {:error, %Ecto.Changeset{}} = Boards.update_card(card, %{title: ""})
     end
 
+    test "update_card/2 does not let a user assign position", %{card: card} do
+      assert {:ok, updated} = Boards.update_card(card, %{title: "x", position: 99})
+      assert updated.position == card.position
+    end
+
     test "delete_card/1 removes the card", %{scope: scope, card: card} do
       assert {:ok, _} = Boards.delete_card(card)
       assert_raise Ecto.NoResultsError, fn -> Boards.get_card!(scope, card.id) end
+    end
+
+    test "delete_card/1 broadcasts to board subscribers", %{board: board, card: card} do
+      Boards.subscribe(board.id)
+      assert {:ok, _} = Boards.delete_card(card)
+      assert_receive {:board_updated, _from}
     end
   end
 
@@ -105,7 +131,13 @@ defmodule Astroboard.BoardsTest do
     test "update_list/2 broadcasts to board subscribers", %{board: board, list: list} do
       Boards.subscribe(board.id)
       assert {:ok, _} = Boards.update_list(list, %{title: "Renamed"})
-      assert_receive {:board_updated}
+      assert_receive {:board_updated, _from}
+    end
+
+    test "delete_list/1 broadcasts to board subscribers", %{board: board, list: list} do
+      Boards.subscribe(board.id)
+      assert {:ok, _} = Boards.delete_list(list)
+      assert_receive {:board_updated, _from}
     end
 
     test "delete_list/1 removes the list and its cards", %{
@@ -165,7 +197,7 @@ defmodule Astroboard.BoardsTest do
     test "broadcasts to board subscribers", %{scope: scope, board: board, list_b: list_b, a1: a1} do
       Boards.subscribe(board.id)
       assert {:ok, _} = Boards.move_card(scope, a1.id, list_b.id, 0)
-      assert_receive {:card_moved, _}
+      assert_receive {:board_updated, _from}
     end
 
     test "raises for another user's card", %{list_a: list_a, a1: a1} do

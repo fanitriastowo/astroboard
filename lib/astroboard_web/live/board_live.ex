@@ -93,6 +93,14 @@ defmodule AstroboardWeb.BoardLive do
     {:noreply, reload_board(socket)}
   end
 
+  def handle_event("save_card", _params, %{assigns: %{selected_card: nil}} = socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("delete_card", _params, %{assigns: %{selected_card: nil}} = socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("save_card", %{"card" => params}, socket) do
     card = socket.assigns.selected_card
 
@@ -123,24 +131,25 @@ defmodule AstroboardWeb.BoardLive do
         %{"card_id" => card_id, "list_id" => list_id, "position" => pos},
         socket
       ) do
-    case Boards.move_card(
-           socket.assigns.current_scope,
-           to_int(card_id),
-           to_int(list_id),
-           to_int(pos)
-         ) do
-      {:ok, _card} -> {:noreply, reload_board(socket)}
+    with card_id when is_integer(card_id) <- to_int(card_id),
+         list_id when is_integer(list_id) <- to_int(list_id),
+         position when is_integer(position) <- to_int(pos),
+         {:ok, _card} <-
+           Boards.move_card(socket.assigns.current_scope, card_id, list_id, position) do
+      {:noreply, reload_board(socket)}
+    else
       _ -> {:noreply, socket}
     end
   end
 
   @impl true
-  def handle_info({:card_moved, _card_id}, socket) do
+  # Ignore our own broadcast — the acting event already updated locally.
+  def handle_info({:board_updated, from}, socket) when from != self() do
     {:noreply, reload_board(socket)}
   end
 
-  def handle_info({:board_updated}, socket) do
-    {:noreply, reload_board(socket)}
+  def handle_info({:board_updated, _from}, socket) do
+    {:noreply, socket}
   end
 
   # Re-fetch the board and reset every list's card stream to the canonical order.
@@ -158,7 +167,13 @@ defmodule AstroboardWeb.BoardLive do
   end
 
   defp to_int(value) when is_integer(value), do: value
-  defp to_int(value) when is_binary(value), do: String.to_integer(value)
+
+  defp to_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, _rest} -> int
+      :error -> nil
+    end
+  end
 
   defp stream_name(list_id), do: :"cards_#{list_id}"
 

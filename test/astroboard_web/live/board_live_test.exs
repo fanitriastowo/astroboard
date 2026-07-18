@@ -182,6 +182,24 @@ defmodule AstroboardWeb.BoardLiveTest do
       assert has_element?(view, "#cards-#{list_b.id}", "movable")
       refute has_element?(view, "#cards-#{list_a.id}", "movable")
     end
+
+    test "ignores a move with a non-numeric card id without crashing", %{
+      conn: conn,
+      board: board,
+      list_b: list_b
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}")
+
+      view
+      |> element("#cards-#{list_b.id}")
+      |> render_hook("move_card", %{
+        "card_id" => "not-a-number",
+        "list_id" => list_b.id,
+        "position" => 0
+      })
+
+      assert has_element?(view, "#board-title")
+    end
   end
 
   describe "authentication" do

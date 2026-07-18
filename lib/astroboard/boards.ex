@@ -33,46 +33,35 @@ defmodule Astroboard.Boards do
     |> Repo.insert()
   end
 
-  @doc "Creates a list appended to the end of the given board."
+  @doc "Creates a list appended to the end of the given board. Broadcasts on success."
   def create_list(%Board{} = board, attrs) do
-    attrs = Map.put(normalize(attrs), "position", next_position(List, :board_id, board.id))
-
-    %List{board_id: board.id}
+    %List{board_id: board.id, position: next_position(List, :board_id, board.id)}
     |> List.changeset(attrs)
     |> Repo.insert()
+    |> notify(board.id)
   end
 
   @doc "Renames/updates a list. Broadcasts to board subscribers on success."
   def update_list(%List{} = list, attrs) do
-    case list |> List.changeset(attrs) |> Repo.update() do
-      {:ok, updated} ->
-        broadcast(updated.board_id, {:board_updated})
-        {:ok, updated}
-
-      error ->
-        error
-    end
+    list
+    |> List.changeset(attrs)
+    |> Repo.update()
+    |> notify(list.board_id)
   end
 
   @doc "Deletes a list and its cards. Broadcasts to board subscribers."
   def delete_list(%List{} = list) do
-    case Repo.delete(list) do
-      {:ok, deleted} ->
-        broadcast(list.board_id, {:board_updated})
-        {:ok, deleted}
-
-      error ->
-        error
-    end
+    list
+    |> Repo.delete()
+    |> notify(list.board_id)
   end
 
-  @doc "Creates a card appended to the end of the given list."
+  @doc "Creates a card appended to the end of the given list. Broadcasts on success."
   def create_card(%List{} = list, attrs) do
-    attrs = Map.put(normalize(attrs), "position", next_position(Card, :list_id, list.id))
-
-    %Card{list_id: list.id}
+    %Card{list_id: list.id, position: next_position(Card, :list_id, list.id)}
     |> Card.changeset(attrs)
     |> Repo.insert()
+    |> notify(list.board_id)
   end
 
   @doc """
@@ -90,22 +79,27 @@ defmodule Astroboard.Boards do
     )
   end
 
-  @doc "Updates a card's editable fields (title, description)."
+  @doc "Updates a card's editable fields (title, description). Broadcasts on success."
   def update_card(%Card{} = card, attrs) do
     card
     |> Card.changeset(attrs)
     |> Repo.update()
+    |> notify(board_id_for_card(card))
   end
 
-  @doc "Deletes a card."
+  @doc "Deletes a card. Broadcasts to board subscribers."
   def delete_card(%Card{} = card) do
-    Repo.delete(card)
+    board_id = board_id_for_card(card)
+
+    card
+    |> Repo.delete()
+    |> notify(board_id)
   end
 
   @doc """
   Moves a card to `target_list_id` at `target_position`, reindexing the source
   and target lists so positions stay contiguous. Both the card and the target
-  list must belong to the scope's user. Broadcasts `{:card_moved, card_id}` to
+  list must belong to the scope's user. Broadcasts `{:board_updated, pid}` to
   the board's subscribers on success.
   """
   def move_card(%Scope{} = scope, card_id, target_list_id, target_position) do
@@ -143,14 +137,7 @@ defmodule Astroboard.Boards do
         Repo.get!(Card, card.id)
       end)
 
-    case result do
-      {:ok, moved} ->
-        broadcast(target_list.board_id, {:card_moved, moved.id})
-        {:ok, moved}
-
-      other ->
-        other
-    end
+    notify(result, target_list.board_id)
   end
 
   defp reindex(ids) do
@@ -178,8 +165,18 @@ defmodule Astroboard.Boards do
     Phoenix.PubSub.subscribe(Astroboard.PubSub, topic(board_id))
   end
 
-  defp broadcast(board_id, message) do
-    Phoenix.PubSub.broadcast(Astroboard.PubSub, topic(board_id), message)
+  # Broadcast a board change to all subscribers, tagging the originating process
+  # so the acting LiveView can ignore its own event (it already updated locally).
+  # Passes {:ok, _} / {:error, _} results straight through for pipelining.
+  defp notify({:ok, _} = result, board_id) when not is_nil(board_id) do
+    Phoenix.PubSub.broadcast(Astroboard.PubSub, topic(board_id), {:board_updated, self()})
+    result
+  end
+
+  defp notify(result, _board_id), do: result
+
+  defp board_id_for_card(%Card{list_id: list_id}) do
+    Repo.one(from l in List, where: l.id == ^list_id, select: l.board_id)
   end
 
   defp topic(board_id), do: "board:#{board_id}"
@@ -197,11 +194,5 @@ defmodule Astroboard.Boards do
   # Next position is the count of existing siblings (0-based, appended to the end).
   defp next_position(schema, foreign_key, parent_id) do
     Repo.one(from r in schema, where: field(r, ^foreign_key) == ^parent_id, select: count(r.id))
-  end
-
-  # Accept both string- and atom-keyed attrs, normalizing to string keys so we
-  # can safely merge the server-computed position.
-  defp normalize(attrs) do
-    Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
   end
 end
