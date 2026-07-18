@@ -57,6 +57,7 @@ defmodule AstroboardWeb.Router do
 
       live "/boards", BoardLive.Index, :index
       live "/boards/:id", BoardLive, :show
+      live "/boards/:id/cards/:card_id", BoardLive, :card
     end
 
     post "/users/update-password", UserSessionController, :update_password

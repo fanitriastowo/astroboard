@@ -51,6 +51,33 @@ defmodule Astroboard.Boards do
     |> Repo.insert()
   end
 
+  @doc """
+  Returns one of the scope user's cards. Raises `Ecto.NoResultsError` if the
+  card does not exist or its board is not owned by the scope's user.
+  """
+  def get_card!(%Scope{} = scope, id) do
+    Repo.one!(
+      from c in Card,
+        join: l in List,
+        on: l.id == c.list_id,
+        join: b in Board,
+        on: b.id == l.board_id,
+        where: c.id == ^id and b.user_id == ^scope.user.id
+    )
+  end
+
+  @doc "Updates a card's editable fields (title, description)."
+  def update_card(%Card{} = card, attrs) do
+    card
+    |> Card.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc "Deletes a card."
+  def delete_card(%Card{} = card) do
+    Repo.delete(card)
+  end
+
   @doc "Returns a changeset for tracking card changes (e.g. forms)."
   def change_card(%Card{} = card, attrs \\ %{}) do
     Card.changeset(card, attrs)

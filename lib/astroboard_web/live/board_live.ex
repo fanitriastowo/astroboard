@@ -12,6 +12,8 @@ defmodule AstroboardWeb.BoardLive do
       |> assign(:page_title, board.title)
       |> assign(:board, board)
       |> assign(:lists, board.lists)
+      |> assign(:selected_card, nil)
+      |> assign(:card_form, nil)
 
     socket =
       Enum.reduce(board.lists, socket, fn list, acc ->
@@ -19,6 +21,20 @@ defmodule AstroboardWeb.BoardLive do
       end)
 
     {:ok, socket}
+  end
+
+  @impl true
+  def handle_params(%{"card_id" => card_id}, _uri, %{assigns: %{live_action: :card}} = socket) do
+    card = Boards.get_card!(socket.assigns.current_scope, card_id)
+
+    {:noreply,
+     socket
+     |> assign(:selected_card, card)
+     |> assign(:card_form, to_form(Boards.change_card(card)))}
+  end
+
+  def handle_params(_params, _uri, socket) do
+    {:noreply, assign(socket, selected_card: nil, card_form: nil)}
   end
 
   @impl true
@@ -45,6 +61,31 @@ defmodule AstroboardWeb.BoardLive do
       {:error, _changeset} ->
         {:noreply, socket}
     end
+  end
+
+  def handle_event("save_card", %{"card" => params}, socket) do
+    card = socket.assigns.selected_card
+
+    case Boards.update_card(card, params) do
+      {:ok, updated} ->
+        {:noreply,
+         socket
+         |> stream_insert(stream_name(updated.list_id), updated)
+         |> push_patch(to: ~p"/boards/#{socket.assigns.board.id}")}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :card_form, to_form(changeset))}
+    end
+  end
+
+  def handle_event("delete_card", _params, socket) do
+    card = socket.assigns.selected_card
+    {:ok, _} = Boards.delete_card(card)
+
+    {:noreply,
+     socket
+     |> stream_delete(stream_name(card.list_id), card)
+     |> push_patch(to: ~p"/boards/#{socket.assigns.board.id}")}
   end
 
   defp stream_name(list_id), do: :"cards_#{list_id}"
@@ -76,13 +117,14 @@ defmodule AstroboardWeb.BoardLive do
             </div>
 
             <div id={"cards-#{list.id}"} phx-update="stream" class="space-y-2">
-              <article
+              <.link
                 :for={{dom_id, card} <- @streams[stream_name(list.id)]}
                 id={dom_id}
-                class="card-cosmic rounded-xl px-3 py-2.5 text-sm cursor-pointer"
+                patch={~p"/boards/#{@board.id}/cards/#{card.id}"}
+                class="card-cosmic block rounded-xl px-3 py-2.5 text-sm cursor-pointer"
               >
                 {card.title}
-              </article>
+              </.link>
             </div>
 
             <form
@@ -114,6 +156,62 @@ defmodule AstroboardWeb.BoardLive do
               class="input input-sm input-bordered w-full text-sm bg-transparent"
             />
           </form>
+        </div>
+      </div>
+
+      <div
+        :if={@selected_card}
+        id="card-modal"
+        class="fixed inset-0 z-30 flex items-start justify-center p-4 sm:p-8 overflow-y-auto"
+      >
+        <.link
+          patch={~p"/boards/#{@board.id}"}
+          class="fixed inset-0 bg-base-300/60 backdrop-blur-sm"
+          aria-label="Close"
+        >
+          <span class="sr-only">Close</span>
+        </.link>
+        <div class="glass-panel relative w-full max-w-xl rounded-2xl p-6 mt-8 space-y-5 shadow-2xl">
+          <div class="flex items-start gap-3">
+            <span class="cosmic-badge size-6 rounded-lg mt-1" />
+            <div class="flex-1">
+              <p class="text-xs text-base-content/50">Card</p>
+            </div>
+            <.link
+              patch={~p"/boards/#{@board.id}"}
+              class="text-base-content/50 hover:text-base-content"
+              aria-label="Close"
+            >
+              <.icon name="hero-x-mark" class="size-5" />
+            </.link>
+          </div>
+
+          <.form for={@card_form} id="card-form" phx-submit="save_card" class="space-y-4">
+            <.input field={@card_form[:title]} type="text" label="Title" required />
+            <.input
+              field={@card_form[:description]}
+              type="textarea"
+              label="Description"
+              rows="5"
+              placeholder="Add a more detailed description…"
+            />
+
+            <div class="flex items-center justify-between pt-2">
+              <button
+                type="button"
+                id="card-delete"
+                phx-click="delete_card"
+                data-confirm="Delete this card?"
+                class="btn btn-sm btn-ghost text-error"
+              >
+                <.icon name="hero-trash" class="size-4" /> Delete
+              </button>
+              <div class="flex gap-2">
+                <.link patch={~p"/boards/#{@board.id}"} class="btn btn-sm btn-ghost">Cancel</.link>
+                <button type="submit" class="btn btn-sm btn-primary">Save</button>
+              </div>
+            </div>
+          </.form>
         </div>
       </div>
     </Layouts.app>

@@ -4,6 +4,7 @@ defmodule Astroboard.Boards.Card do
 
   schema "cards" do
     field :title, :string
+    field :description, :string
     field :position, :integer
 
     belongs_to :list, Astroboard.Boards.List
@@ -14,7 +15,7 @@ defmodule Astroboard.Boards.Card do
   @doc false
   def changeset(card, attrs) do
     card
-    |> cast(attrs, [:title, :position])
+    |> cast(attrs, [:title, :description, :position])
     |> validate_required([:title, :position])
     |> validate_length(:title, max: 240)
   end

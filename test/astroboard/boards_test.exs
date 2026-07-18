@@ -50,6 +50,41 @@ defmodule Astroboard.BoardsTest do
     end
   end
 
+  describe "get_card!/2, update_card/2, delete_card/1" do
+    setup %{scope: scope} do
+      {:ok, board} = Boards.create_board(scope, %{title: "Board"})
+      {:ok, list} = Boards.create_list(board, %{title: "Backlog"})
+      {:ok, card} = Boards.create_card(list, %{title: "A card"})
+      %{card: card}
+    end
+
+    test "get_card!/2 returns the scope user's card", %{scope: scope, card: card} do
+      assert Boards.get_card!(scope, card.id).id == card.id
+    end
+
+    test "get_card!/2 raises for a card owned by another user", %{card: card} do
+      other = user_scope_fixture()
+      assert_raise Ecto.NoResultsError, fn -> Boards.get_card!(other, card.id) end
+    end
+
+    test "update_card/2 changes title and description", %{card: card} do
+      assert {:ok, updated} =
+               Boards.update_card(card, %{title: "Renamed", description: "Details"})
+
+      assert updated.title == "Renamed"
+      assert updated.description == "Details"
+    end
+
+    test "update_card/2 rejects a blank title", %{card: card} do
+      assert {:error, %Ecto.Changeset{}} = Boards.update_card(card, %{title: ""})
+    end
+
+    test "delete_card/1 removes the card", %{scope: scope, card: card} do
+      assert {:ok, _} = Boards.delete_card(card)
+      assert_raise Ecto.NoResultsError, fn -> Boards.get_card!(scope, card.id) end
+    end
+  end
+
   describe "get_board!/2" do
     test "preloads lists and cards ordered by position", %{scope: scope} do
       {:ok, board} = Boards.create_board(scope, %{title: "Board"})
