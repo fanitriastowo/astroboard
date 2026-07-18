@@ -1,6 +1,8 @@
 defmodule AstroboardWeb.BoardLive do
   use AstroboardWeb, :live_view
 
+  import AstroboardWeb.BoardLive.Components
+
   alias Astroboard.Boards
 
   @impl true
@@ -334,61 +336,7 @@ defmodule AstroboardWeb.BoardLive do
         </div>
       </div>
 
-      <div
-        :if={@selected_card}
-        id="card-modal"
-        class="fixed inset-0 z-30 flex items-start justify-center p-4 sm:p-8 overflow-y-auto"
-      >
-        <.link
-          patch={~p"/boards/#{@board.id}"}
-          class="fixed inset-0 bg-base-300/60 backdrop-blur-sm"
-          aria-label="Close"
-        >
-          <span class="sr-only">Close</span>
-        </.link>
-        <div class="glass-panel relative w-full max-w-xl rounded-2xl p-6 mt-8 space-y-5 shadow-2xl">
-          <div class="flex items-start gap-3">
-            <span class="cosmic-badge size-6 rounded-lg mt-1" />
-            <div class="flex-1">
-              <p class="text-xs text-base-content/50">Card</p>
-            </div>
-            <.link
-              patch={~p"/boards/#{@board.id}"}
-              class="text-base-content/50 hover:text-base-content"
-              aria-label="Close"
-            >
-              <.icon name="hero-x-mark" class="size-5" />
-            </.link>
-          </div>
-
-          <.form for={@card_form} id="card-form" phx-submit="save_card" class="space-y-4">
-            <.input field={@card_form[:title]} type="text" label="Title" required />
-            <.input
-              field={@card_form[:description]}
-              type="textarea"
-              label="Description"
-              rows="5"
-              placeholder="Add a more detailed description…"
-            />
-
-            <div class="flex items-center justify-between pt-2">
-              <button
-                type="button"
-                id="card-delete"
-                phx-click="delete_card"
-                data-confirm="Delete this card?"
-                class="btn btn-sm btn-ghost text-error"
-              >
-                <.icon name="hero-trash" class="size-4" /> Delete
-              </button>
-              <div class="flex gap-2">
-                <.link patch={~p"/boards/#{@board.id}"} class="btn btn-sm btn-ghost">Cancel</.link>
-                <button type="submit" class="btn btn-sm btn-primary">Save</button>
-              </div>
-            </div>
-          </.form>
-        </div>
-      </div>
+      <.card_modal :if={@selected_card} card_form={@card_form} board_id={@board.id} />
     </Layouts.app>
     """
   end
