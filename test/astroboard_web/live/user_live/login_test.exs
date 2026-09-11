@@ -87,6 +87,18 @@ defmodule AstroboardWeb.UserLive.LoginTest do
 
       assert login_html =~ "Register"
     end
+
+    test "redirects to forgot password page when the link is clicked", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/log-in")
+
+      {:ok, _lv, html} =
+        lv
+        |> element("main a", "Forgot your password?")
+        |> render_click()
+        |> follow_redirect(conn, ~p"/users/reset-password")
+
+      assert html =~ "Send reset link"
+    end
   end
 
   describe "re-authentication (sudo mode)" do

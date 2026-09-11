@@ -167,6 +167,64 @@ defmodule Astroboard.Accounts do
     |> update_user_and_delete_all_tokens()
   end
 
+  ## Reset password
+
+  @doc ~S"""
+  Delivers the reset password instructions to the given user.
+
+  ## Examples
+
+      iex> deliver_user_reset_password_instructions(user, &url(~p"/users/reset-password/#{&1}"))
+      {:ok, %{to: ..., body: ...}}
+
+  """
+  def deliver_user_reset_password_instructions(%User{} = user, reset_password_url_fun)
+      when is_function(reset_password_url_fun, 1) do
+    {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
+    Repo.insert!(user_token)
+
+    UserNotifier.deliver_reset_password_instructions(
+      user,
+      reset_password_url_fun.(encoded_token)
+    )
+  end
+
+  @doc """
+  Gets the user with the given reset password token.
+  """
+  def get_user_by_reset_password_token(token) do
+    with {:ok, query} <- UserToken.verify_reset_password_token_query(token),
+         %User{} = user <- Repo.one(query) do
+      user
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Resets the user password.
+
+  The reset link proves ownership of the email, so an unconfirmed user is
+  confirmed as well. Otherwise they would be left unconfirmed with a password
+  set, which `login_user_by_magic_link/1` refuses.
+
+  Returns a tuple with the updated user, as well as a list of expired tokens.
+
+  ## Examples
+
+      iex> reset_user_password(user, %{password: "new long password", password_confirmation: "new long password"})
+      {:ok, {%User{}, [...]}}
+
+      iex> reset_user_password(user, %{password: "valid", password_confirmation: "not the same"})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def reset_user_password(user, attrs) do
+    changeset = User.password_changeset(user, attrs)
+    changeset = if user.confirmed_at, do: changeset, else: User.confirm_changeset(changeset)
+    update_user_and_delete_all_tokens(changeset)
+  end
+
   ## Session
 
   @doc """

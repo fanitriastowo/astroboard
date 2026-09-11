@@ -87,6 +87,14 @@ defmodule AstroboardWeb.UserLive.Login do
             autocomplete="current-password"
             spellcheck="false"
           />
+          <div class="-mt-1 mb-3 text-right text-sm">
+            <.link
+              navigate={~p"/users/reset-password"}
+              class="font-semibold text-brand hover:underline"
+            >
+              Forgot your password?
+            </.link>
+          </div>
           <.button class="btn btn-primary w-full" name={@form[:remember_me].name} value="true">
             Log in and stay logged in <span aria-hidden="true">→</span>
           </.button>

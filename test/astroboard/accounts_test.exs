@@ -389,6 +389,109 @@ defmodule Astroboard.AccountsTest do
     end
   end
 
+  describe "deliver_user_reset_password_instructions/2" do
+    setup do
+      %{user: user_fixture()}
+    end
+
+    test "sends token through notification", %{user: user} do
+      token =
+        extract_user_token(fn url ->
+          Accounts.deliver_user_reset_password_instructions(user, url)
+        end)
+
+      {:ok, token} = Base.url_decode64(token, padding: false)
+      assert user_token = Repo.get_by(UserToken, token: :crypto.hash(:sha256, token))
+      assert user_token.user_id == user.id
+      assert user_token.sent_to == user.email
+      assert user_token.context == "reset_password"
+    end
+  end
+
+  describe "get_user_by_reset_password_token/1" do
+    setup do
+      user = user_fixture()
+
+      token =
+        extract_user_token(fn url ->
+          Accounts.deliver_user_reset_password_instructions(user, url)
+        end)
+
+      %{user: user, token: token}
+    end
+
+    test "returns the user with valid token", %{user: user, token: token} do
+      assert %User{id: id} = Accounts.get_user_by_reset_password_token(token)
+      assert id == user.id
+    end
+
+    test "does not return the user with invalid token" do
+      refute Accounts.get_user_by_reset_password_token("oops")
+    end
+
+    test "does not return the user if token expired", %{token: token} do
+      expired_at = DateTime.add(DateTime.utc_now(:second), -2, :hour)
+      {1, nil} = Repo.update_all(UserToken, set: [inserted_at: expired_at])
+      refute Accounts.get_user_by_reset_password_token(token)
+    end
+
+    test "does not return the user if email changed", %{user: user, token: token} do
+      {1, nil} =
+        Repo.update_all(from(u in User, where: u.id == ^user.id), set: [email: "new@example.com"])
+
+      refute Accounts.get_user_by_reset_password_token(token)
+    end
+
+    test "does not accept a magic link token", %{user: user} do
+      {encoded_token, _hashed_token} = generate_user_magic_link_token(user)
+      refute Accounts.get_user_by_reset_password_token(encoded_token)
+    end
+  end
+
+  describe "reset_user_password/2" do
+    setup do
+      %{user: user_fixture()}
+    end
+
+    test "validates password", %{user: user} do
+      {:error, changeset} =
+        Accounts.reset_user_password(user, %{
+          password: "not valid",
+          password_confirmation: "another"
+        })
+
+      assert %{
+               password: ["should be at least 12 character(s)"],
+               password_confirmation: ["does not match password"]
+             } = errors_on(changeset)
+    end
+
+    test "updates the password", %{user: user} do
+      {:ok, {updated_user, _expired_tokens}} =
+        Accounts.reset_user_password(user, %{password: "new valid password"})
+
+      assert is_nil(updated_user.password)
+      assert Accounts.get_user_by_email_and_password(user.email, "new valid password")
+    end
+
+    test "deletes all tokens for the given user", %{user: user} do
+      _ = Accounts.generate_user_session_token(user)
+      {:ok, {_, _}} = Accounts.reset_user_password(user, %{password: "new valid password"})
+      refute Repo.get_by(UserToken, user_id: user.id)
+    end
+
+    test "confirms an unconfirmed user so magic link login still works" do
+      user = unconfirmed_user_fixture()
+
+      {:ok, {updated_user, _}} =
+        Accounts.reset_user_password(user, %{password: "new valid password"})
+
+      assert updated_user.confirmed_at
+      {encoded_token, _hashed_token} = generate_user_magic_link_token(updated_user)
+      assert {:ok, {_, _}} = Accounts.login_user_by_magic_link(encoded_token)
+    end
+  end
+
   describe "inspect/2 for the User module" do
     test "does not include password" do
       refute inspect(%User{password: "123456"}) =~ "password: \"123456\""
