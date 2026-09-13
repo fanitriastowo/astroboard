@@ -2,8 +2,11 @@ import Config
 
 # Configure your database
 config :astroboard, Astroboard.Repo,
+  # POOL_SIZE env allows raising concurrency for load tests without editing
+  # the file. Default 20 (up from stock 5): `GET /` is read-heavy and 200 VUs
+  # queue badly on 5 SQLite connections. Writes still serialize in SQLite.
   database: Path.expand("../astroboard_dev.db", __DIR__),
-  pool_size: 5,
+  pool_size: String.to_integer(System.get_env("POOL_SIZE") || "20"),
   stacktrace: true,
   show_sensitive_data_on_connection_error: true
 
@@ -16,7 +19,16 @@ config :astroboard, Astroboard.Repo,
 config :astroboard, AstroboardWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}],
+  http: [
+    ip: {127, 0, 0, 1},
+    # Cap below ThousandIsland defaults (100 acceptors / 16_384 connections:
+    # see deps/thousand_island/lib/thousand_island/server_config.ex). The
+    # defaults assume a raised fd limit; with macOS's 256 soft limit the
+    # acceptor crashes with `:emfile` under k6. Fewer acceptors = less accept
+    # churn, capped connections = fail fast instead of fd-exhaustion cascade.
+    # Raise `ulimit -n` (user-owned step) before raising these.
+    thousand_island_options: [num_acceptors: 25, num_connections: 1024]
+  ],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,

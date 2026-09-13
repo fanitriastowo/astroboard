@@ -19,6 +19,8 @@ Built with Phoenix 1.8 (LiveView) on SQLite.
 
 ## Getting started
 
+Requires Elixir 1.20+ and Erlang/OTP 27+ (tested on OTP 29).
+
 To start your Phoenix server:
 
 * Run `mix setup` to install and setup dependencies

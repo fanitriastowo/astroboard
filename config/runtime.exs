@@ -42,15 +42,13 @@ end
 
 if config_env() == :prod do
   database_path =
-    System.get_env("DATABASE_PATH") ||
-      raise """
-      environment variable DATABASE_PATH is missing.
-      For example: /etc/astroboard/astroboard.db
-      """
+    System.get_env("DATABASE_PATH") || Path.join(File.cwd!(), "astroboard_dev.db")
 
   config :astroboard, Astroboard.Repo,
     database: database_path,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "5")
+    # Default 20: stock 5 serializes concurrent reads under load (SQLite
+    # writes still serialize regardless of pool size).
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "20")
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
@@ -75,7 +73,11 @@ if config_env() == :prod do
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
       # See the documentation on https://bandit.hexdocs.pm/Bandit.html#t:options/0
       # for details about using IPv6 vs IPv4 and loopback vs public addresses.
-      ip: {0, 0, 0, 0, 0, 0, 0, 0}
+      ip: {0, 0, 0, 0, 0, 0, 0, 0},
+      # Capped below ThousandIsland defaults (100 / 16_384) so a low fd
+      # limit degrades with 503s instead of `:emfile` acceptor crashes.
+      # Raise with `ulimit -n` / systemd LimitNOFILE before increasing.
+      thousand_island_options: [num_acceptors: 50, num_connections: 2048]
     ],
     secret_key_base: secret_key_base
 

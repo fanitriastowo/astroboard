@@ -42,3 +42,9 @@ npm-debug.log
 .gstack/
 
 .DS_STORE
+
+/priv/static/*.gz
+/priv/static/images/*.gz
+/priv/static/*-*.ico
+/priv/static/*-*.txt
+priv/static/images/*-*.svg
